@@ -1,0 +1,22 @@
+# === Obsidian ===
+# 기기마다 달라지는 작업 상태/캐시는 추적하지 않음 (테마·플러그인 설정은 공유하려고 .obsidian 자체는 남겨둠)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+.obsidian/cache/**
+
+# 휴지통
+.trash/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === 편집기/임시 ===
+*.tmp
+*~
+.~*#
+
+# 플러그인 설정까지 통째로 동기화에서 빼고 싶다면 아래 주석을 해제하세요
+# .obsidian/
