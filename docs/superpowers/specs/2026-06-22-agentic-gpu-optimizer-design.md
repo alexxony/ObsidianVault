@@ -11,6 +11,12 @@ tags: [project, gpu, agent, ax, leetgpu, portfolio, design]
 > 출발: [[agentic-gpu-solver-concept]] 컨셉 메모를 포트폴리오 목표로 재조준.
 > 다음: [[2026-06-22-agentic-gpu-optimizer]] 구현 계획.
 
+> **📌 Task 0 검증 반영 (2026-06-22, [[00-measurement-feasibility]]):**
+> - 측정원 분리 확정: **Colab Pro A100 + ncu = 루프 신호원(무제한)**, **LeetGPU Pro = percentile 검증(가끔)**.
+> - 포폴 곡선 = 단일 percentile이 아니라 **2종**: ncu 메트릭 개선 곡선(메인) + LeetGPU percentile 검증점.
+> - 섹션6 최우선 리스크("Pro 트레이스 필요성") **해소.** A100 칩도 LeetGPU와 일치.
+> - 아래 섹션0/5/6은 이 반영을 포함하도록 갱신됨.
+
 ## 0. 포지셔닝 (가장 중요 — 이게 모든 결정의 기준)
 
 - **목표 = 포트폴리오.** 상업/학습 아님.
@@ -120,8 +126,8 @@ Ledger 이력으로 룰 자체를 갱신:
 
 - 모든 Easy 문제 통째 투입 (고르지 않음).
 - 시스템이 자동 분류 → **2 트랙**:
-  1. **최적화 가능군** (행렬곱/reduction/stencil류): percentile 상승 곡선.
-  2. **포화군** (sigmoid류 BW포화 elementwise): "STOP, 최적화 불가" 판정.
+  1. **최적화 가능군** (행렬곱/reduction/stencil류): **ncu 메트릭 개선 곡선**(occupancy/BW 라운드별 상승). 최종 커널만 LeetGPU Pro percentile로 검증.
+  2. **포화군** (sigmoid/grayscale류 BW포화 elementwise): "STOP, 최적화 불가" 판정.
 - **핵심 전환**: 분류 주체가 사람이면 체리피킹, 시스템이면 지능. STOP 정확도 = "한계를 아는 시스템" = 정직의 증거.
 
 ### sigmoid 예제 = 포화군 실연
@@ -137,13 +143,14 @@ Y[tid] = 1.0f / (1.0f + __expf(-X[tid]));  // 이미 BW 천장 근접
 - **문제**: LeetGPU Easy 전체 또는 무작위 N개(~15~20), 고르지 않음.
 - **LLM**: 단일 API 모델 1개 (DeepSeek 또는 Codex, 초반 가벼운 테스트로 결정). 멀티-LLM/폴백사다리 **폐기.**
 - **GPU 학습**: 시드룰 5~6개 + CUDA 멘탈모델 최소 = **3~5일, 읽기 전용.**
-- **포함**: 생성루프 + Correctness Gate + Trace Parser + 시드 Hypothesis Engine + Rule Evolver(경량) + Ledger + 2트랙 곡선.
+- **측정**: 루프 신호 = **Colab Pro A100 + ncu**(무제한). percentile 검증 = LeetGPU Pro(최종 커널만, 가끔).
+- **포함**: 생성루프 + Correctness Gate + Trace Parser(ncu 파싱) + 시드 Hypothesis Engine + Rule Evolver(경량) + Ledger + 2트랙 곡선.
 - **제외 (2차)**: RAG/패턴DB, 멀티-LLM, Medium/Hard, 사이트 크롤링, 원리노트.
 
 ### 성공 기준 (2축)
-- **(a) 최적화 가능군**: 평균 percentile 개선 우상향 곡선 1장 (+ 가설 로그).
+- **(a) 최적화 가능군**: 평균 **ncu 메트릭(occupancy/BW) 개선** 우상향 곡선 1장 (+ 가설 로그). 최종 커널 일부는 LeetGPU percentile로 교차검증.
 - **(b) 포화군**: STOP 판정 정확도 (시스템이 "불가"라 한 게 실제로 맞았나).
-- **합격선**: 가능군에서 *최소 3~5문제*가 라운드 진행에 따라 percentile 상승 + 그 상승에 근거 로그 부착.
+- **합격선**: 가능군에서 *최소 3~5문제*가 라운드 진행에 따라 메트릭 상승 + 그 상승에 근거 로그 부착.
 - **메타루프 증거**: 룰 신뢰도가 실제로 갱신됐다는 before/after 1장 (없으면 Rule Evolver는 장식).
 
 ### 기간 (대략)
@@ -153,7 +160,7 @@ Y[tid] = 1.0f / (1.0f + __expf(-X[tid]));  // 이미 BW 천장 근접
 
 | 축 | 내용 | 처리 |
 |---|---|---|
-| **Pro 트레이스 필요성** | percentile/Perfetto 트레이스가 Pro 전용일 수 있음. 무료 등급에 메트릭 어디까지 나오나 = **미확인. 최우선 검증.** | MVP 착수 전 LeetGPU 무료 등급 실측. 트레이스 없으면 가설엔진 근거가 약해짐 → 대안: nvprof/ncu 로컬 측정 가능성 검토 |
+| ~~Pro 트레이스 필요성~~ | ✅ **해소 ([[00-measurement-feasibility]], 판정 A).** 무료 LeetGPU는 통과/실패만 주지만, Colab Pro A100+ncu가 메트릭(dram_throughput 83%, warps_active 81%) 추출 성공. 신호원 확보. | 신호 = Colab ncu(무제한), percentile = LeetGPU Pro(가끔). 잔여: Pro 제출 제한 수치 / A100 크레딧 변동 |
 | **라이선스** | AlphaGPU = CC BY-NC-ND. 포폴(비상업)이라 NC 회색지대. 단 challenge.py 직접 사용 시 ND 충돌 가능 | 우회안 C(자체 테스트 생성) 기본. AlphaGPU 직접 의존 최소화 |
 | **메타루프 수렴 증거** | Rule Evolver가 "실제로 개선됐다"를 못 보이면 장식 | 성공기준 (b)에 before/after 명시 |
 | **STOP 오판** | 포화군인데 사실 최적화 여지 있는 문제를 STOP 처리 = 가짜 정직 | STOP 판정을 수동 스팟체크(1~2개 직접 검증) |
@@ -163,6 +170,6 @@ Y[tid] = 1.0f / (1.0f + __expf(-X[tid]));  // 이미 BW 천장 근접
 
 - 멀티-LLM 폴백 3단 사다리 → 단일 LLM.
 - RAG/패턴DB MVP 포함 → 2차로.
-- "속도 상위권" 절대 목표 → "percentile *개선* 곡선"으로 완화 (상위권 자체 아님).
+- "속도 상위권" 절대 목표 → "ncu 메트릭 *개선* 곡선 + percentile 검증점"으로 완화 (Task 0 반영, 상위권 자체 아님).
 - 컴파일러/perf 직군 어필 → AX 메인 + 저수준 적용력 보조.
 - 문제 선별 → 전수 + 자동 2트랙 분류.
