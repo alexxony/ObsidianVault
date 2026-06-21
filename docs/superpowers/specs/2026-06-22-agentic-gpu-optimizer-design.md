@@ -1,13 +1,15 @@
 ---
 title: Agentic GPU Kernel Optimizer — 설계 (Design Spec)
-status: design-approved
+status: proposal
 created: 2026-06-22
 tags: [project, gpu, agent, ax, leetgpu, portfolio, design]
 ---
 
 # Agentic GPU Kernel Optimizer — 설계
 
-> 브레인스토밍 합의 결과. [[agentic-gpu-solver-concept]] 컨셉 메모를 포트폴리오 목표로 재조준한 확정 설계.
+> ⚠️ **제안(proposal)이며 확정 아님.** 브레인스토밍 합의 결과를 정리한 한 갈래.
+> 출발: [[agentic-gpu-solver-concept]] 컨셉 메모를 포트폴리오 목표로 재조준.
+> 다음: [[2026-06-22-agentic-gpu-optimizer]] 구현 계획.
 
 ## 0. 포지셔닝 (가장 중요 — 이게 모든 결정의 기준)
 
