@@ -12,6 +12,7 @@ tags: [project, gpu, agent, leetgpu, concept]
 > **후속 문서 (포트폴리오 방향 재조준, 모두 제안 단계):**
 > - [[2026-06-22-agentic-gpu-optimizer-design]] — 설계 (AX 메인 + 저수준 적용력 보조로 재프레이밍)
 > - [[2026-06-22-agentic-gpu-optimizer]] — 구현 계획 (TDD 11태스크, Task 0 = 측정 가용성 게이트)
+> - [[00-measurement-feasibility]] — Task 0 검증 결과 (판정: A, Colab Pro A100+ncu 신호원 확보)
 
 ## 한 줄 정의
 GPU 챌린지를 자동으로 통과시키고, 나아가 **속도 상위권**까지 끌어올리는 멀티-LLM 솔버. 신규 문제·사내 과제로 일반화 가능하게.
