@@ -109,4 +109,24 @@ FFN `silu(gate)*up` 융합 (ncu 126μs, 메모리바운드 확정, 비중 ~33%).
 
 1. **단일소스 = `.py` (ipynb 폐기).** probe 따로 안 만듦(이중작성 금지, 교훈1) → `solve.py --check|--bench|--profile` argparse. git diff 깨끗, nsys/ncu가 .py 직접 먹음, LLM 파일 통째 수정 쉬움. ipynb 장점(인터랙티브)은 무인 루프엔 불필요.
 2. **Runner = VSCode↔Colab SSH 터널.** colab-ssh/cloudflared로 A100 셸 접근 → scp로 solve.py 보내고 `python solve.py` 실행, 출력 회수. 복붙 0 = Runner 실물.
-3. **Trace Parser = 프로파일 파일저장 + 요약만 회수 (토큰 99%↓).** 오늘 ncu CSV 247열×165행이 통째 컨텍스트로 들어와 토큰 수만 소모. 대신 `ncu --csv -o p.csv` → `parse.py`가 nvtx 구간 합산 → top-5 커널 JSON(~50토큰)만 LLM에. **측정 순서: nsys(타임라인, 싸고 빠름) 먼저 → 병목 구간 → 의심 커널만 ncu(replay 느림) 깊이.** 둘 다 Colab A100서 동작 확인(ncu 됨=권한 OK), 병용 가능.
+3. **Trace Parser = 프로파일 파일저장 + 요약만 회수 (토큰 99%↓).** 오늘 ncu CSV 247열×165행이 통째 컨텍스트로 들어와 토큰 수만 소모. 대신 `ncu --csv -o p.csv` → `parse.py`가 nvtx 구간 합산 → top-5 커널 JSON(~50토큰)만 LLM에.
+
+### 측정원 명세 (nsys 디폴트 / ncu 옵션)
+
+- **측정원 = nsys (Nsight Systems) 디폴트.** 매 라운드 항상. 1회 실행=1회 측정(싸고 빠름), 전체 타임라인+커널 시간합+런치 갭, 권한 덜 까다로움.
+  - `nsys profile -o r.nsys-rep python solve.py --bench`
+  - `nsys stats --report cuda_gpu_kern_sum --format csv r.nsys-rep` → 커널별 시간합 → parse.py → top5.
+- **ncu (Nsight Compute) = 옵션, 커널 깊이파기만.** nsys가 천장 커널 짚은 뒤 "왜 느린가"(SM% vs DRAM% = 메모리 vs 연산 바운드, occupancy, 레지스터) 알아야 변형 방향 정할 때만. replay라 느림(165커널=6패스), HW 카운터 권한 필요(ERR_NVGPUCTRPERM 위험).
+  - `ncu --set basic --csv -o k.ncu-rep -- python solve.py --profile` (그 커널만 타깃).
+  - 둘 다 Colab A100서 동작 확인(ncu 됨=권한 OK). 1차 구현 = nsys만, ncu는 부족할 때 추가.
+
+### 실행 위치 (GPU는 Colab 하나면 끝)
+
+| 노드 | GPU | 역할 |
+|---|---|---|
+| 사용자 PC (Windows) | 0 | VSCode 타자 + SSH. nsys/ncu **GUI는 선택**(eye check용), 루프엔 불필요 |
+| LLM (WSL) | 0 | solve.py 생성/수정 + SSH 명령 발행 |
+| Colab A100 | **1** | `python solve.py` + `nsys`/`ncu` **CLI** 실행. 유일한 GPU·측정 노드 |
+
+- nsys/ncu는 **CLI 바이너리** — GUI 앱과 별개, 창 안 띄워도 돎. Colab 셸에서 실행.
+- 사용자 PC GPU 불필요(단순 해석=타자+전송). GUI 앱 켜둘 필요 없음(.nsys-rep 눈으로 볼 때만).
