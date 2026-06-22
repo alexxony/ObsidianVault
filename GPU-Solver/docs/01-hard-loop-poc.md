@@ -2,7 +2,7 @@
 title: Hard 문제 최적화 루프 PoC (수동 1회전)
 status: done
 created: 2026-06-22
-tags: [gpu-solver, poc, loop, hard, optimization, leetgpu, colab]
+tags: [gpu-solver, poc, loop, hard, optimization, leetgpu, colab, ncu, profiling]
 ---
 
 # Hard 문제 최적화 루프 PoC — 수동 1회전
@@ -36,6 +36,8 @@ tags: [gpu-solver, poc, loop, hard, optimization, leetgpu, colab]
 |---|---|---|---|---|---|
 | R0 | naive (score 행렬 (8,2048,2048) materialise) | 3.495 ms | 1.00× | PASS | (기준선) |
 | R1 | flash attn (`F.scaled_dot_product_attention`, is_causal) | 1.723 ms | 2.03× | PASS | ✅ |
+| R2 | GQA `enable_gqa=True` (kv broadcast, repeat_interleave 삭제) | 3.616 ms | 0.48× | PASS | ❌ **반증** |
+| R2' | GQA `expand` view (repeat_interleave 대체, flash 유지) | 1.812 ms | 1.93× | PASS | ❌ **반증** |
 
 **R1 가설(룰 발화)**: "seq 큼 + score 행렬 materialise = attention 메모리 병목 → flash로 융합."
 - 변형 범위 = attention 6줄만. RMSNorm/RoPE/GQA/FFN 동일 (최소 타깃).
@@ -44,11 +46,47 @@ tags: [gpu-solver, poc, loop, hard, optimization, leetgpu, colab]
 
 수동 "더 빨리 해줘"와의 차이 = **가설이 근거 있음** (트레이스/구조 → 병목 → 타깃 변형). = [[2026-06-22-agentic-gpu-optimizer-design]] §3 가설엔진의 실물.
 
-## R2 (보류) — 추측 금지 게이트
+## R2 — ncu 병목 확정 후 2회 변형 (둘 다 반증)
 
-- R1까진 병목이 눈에 뻔함(score 행렬). **R2부터는 ncu 트레이스로 진짜 병목 확인 후 가설.** 추측 변형 = 수동 루프 회귀.
-- ncu 프로파일 시도 중. 첫 시도는 probe 파일 버그로 중단(아래 교훈). 파일 가드 통과 후 재프로파일 대기.
-- 다음 병목 후보(미확정, ncu가 정함): FFN matmul(가장 큰 연산) / 작은 elementwise 커널 융합(RMSNorm·RoPE·residual) / fp16·bf16 tensor core.
+R1까진 병목이 눈에 뻔함(score 행렬). R2부터 **ncu per-kernel 트레이스로 진짜 병목 확정 후 가설.** 추측 변형 금지.
+
+### ncu 병목 확정 (R1 코드, A100, nvtx attn/ffn 구간)
+
+`--csv --page raw`로 커널별 `gpu__time_duration` 추출. 1회 forward 기준:
+
+| op | 커널 | 시간/launch | SM% | DRAM% | 분류 |
+|---|---|---|---|---|---|
+| FFN `silu(gate)*up` mul | BinaryFunctor mul | **75.7 μs** | 4% | — | **메모리바운드** |
+| FFN silu | silu_kernel | 50.5 μs | 33% | — | 메모리바운드 |
+| attn RoPE/residual mul·add | elementwise mul (×다수) | 18~37 μs ea | 24~37% | 30~52% | 메모리바운드 |
+| RMSNorm reduce | reduce_kernel | 27 μs (×2) | 10% | — | 메모리바운드 |
+| GQA repeat_interleave | CatArrayBatchedCopy | 30 μs (×2) | 17% | — | 메모리바운드 |
+| QKV/O/FFN matmul | ampere_sgemm | 2~7 μs ea | 68~85% | — | 연산(공짜) |
+| flash attn | fmha_cutlassF | **1.74 μs** | 5% | 48% | (R1 성과) |
+
+**핵심: 천장 = matmul 아님. elementwise/메모리바운드 커널이다.** sgemm 전부 ~30μs, sdpa 1.7μs = 연산 거의 공짜. 시간 먹는 놈 = elementwise mul/add/silu (SM 3~33%, DRAM 30~52% = HBM 왕복 병목).
+
+### R2 가설 (룰 발화, 근거=ncu)
+
+> "elementwise 커널 각자 HBM 왕복 = 메모리바운드. 데이터 큼·연산 작음 → **융합으로 왕복 제거.**"
+> 1차 타깃 = GQA repeat_interleave(CatArray 30μs×2) 제거 (작은·안전 변형부터).
+
+### R2/R2' 변형 + 반증
+
+- **R2 (`enable_gqa=True`)**: kv 안 늘리고 sdpa 내부 broadcast → repeat_interleave 삭제. 결과 **3.616 ms (0.48×, 반증).** 원인: enable_gqa가 **flash 백엔드 끔** → math 경로 fallback. CatArray 30μs 아끼고 flash 1.7μs→~1900μs 잃음. 순손실.
+- **R2' (`expand` view)**: repeat_interleave를 stride-0 expand로 대체, enable_gqa 빼서 flash 복귀. 결과 **1.812 ms (1.93×, 반증).** R1(1.723)보다 +5%. 원인: `expand→reshape`가 stride-0라 reshape이 결국 contiguous 복사 유발 → CatArray 안 사라짐 + 노이즈.
+
+**판정: GQA repeat_interleave 제거 = 이 케이스서 이득 없음. R1(1.723) 챔피언 유지.** 룰 "작은 메모리바운드 커널 제거" 신뢰도 −1.
+
+### R2가 가르친 것 (= 룰 보정)
+
+1. **30μs는 전체 1723μs의 1.7%.** 아껴봐야 측정 노이즈에 묻힘. ncu 교훈: 30μs 쫓지 말고 **126μs(FFN silu+mul)** 쫓아라. → 룰에 "타깃 비중 ≥ 5% 게이트" 추가.
+2. **융합 시도가 더 비싼 백엔드를 깨울 수 있다** (enable_gqa→flash off). 변형이 다른 최적화를 끄지 않는지 확인 필수. → 룰에 "백엔드 회귀 체크".
+3. **반증도 결과물.** 가설 2개 다 ncu 근거였고 2개 다 측정이 기각 = 루프가 추측 아니라 측정으로 굴러간다는 증거.
+
+### 다음 (R3) — 진짜 타깃
+
+FFN `silu(gate)*up` 융합 (ncu 126μs, 메모리바운드 확정, 비중 ~33%). torch.compile 한 줄 또는 직접 Triton 융합 커널.
 
 ## 얻은 교훈 (실제 시스템 가드로 직결)
 
@@ -60,6 +98,7 @@ tags: [gpu-solver, poc, loop, hard, optimization, leetgpu, colab]
 
 ## 다음
 
-- [ ] R2: ncu 재프로파일 (파일 가드 통과 상태) → 커널별 시간표 → 진짜 병목 확정 → 변형 → R2 측정.
-- [ ] 곡선 누적: R0→R1→R2 latency 곡선 + 라운드별 가설 로그 (포폴 결과물 = 곡선+로그).
+- [x] R2: ncu per-kernel 프로파일 → 병목 확정(elementwise 메모리바운드) → GQA 제거 2회 변형 → 둘 다 반증, R1 챔피언 유지.
+- [ ] R3: FFN `silu(gate)*up` 융합 (torch.compile / Triton) — ncu 126μs 타깃, 메모리바운드 확정.
+- [ ] 곡선 누적: R0→R1→R2→R2'→R3 latency 곡선 + 라운드별 가설 로그(반증 2건 포함) = 포폴 결과물(곡선+로그).
 - [ ] LeetGPU 제출로 실제 PASS 도장 + percentile 교차검증 (Pro).
