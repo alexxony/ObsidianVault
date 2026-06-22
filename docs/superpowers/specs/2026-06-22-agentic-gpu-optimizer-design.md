@@ -2,11 +2,12 @@
 title: Agentic GPU Kernel Optimizer — 설계 (Design Spec)
 status: proposal
 created: 2026-06-22
-tags: [project, gpu, agent, ax, leetgpu, portfolio, design]
+tags: [gpu-solver, project, gpu, agent, ax, leetgpu, portfolio, design]
 ---
 
 # Agentic GPU Kernel Optimizer — 설계
 
+> 🗂️ **인덱스: [[GPU-Solver-MOC]]**
 > ⚠️ **제안(proposal)이며 확정 아님.** 브레인스토밍 합의 결과를 정리한 한 갈래.
 > 출발: [[agentic-gpu-solver-concept]] 컨셉 메모를 포트폴리오 목표로 재조준.
 > 다음: [[2026-06-22-agentic-gpu-optimizer]] 구현 계획.
@@ -173,3 +174,4 @@ Y[tid] = 1.0f / (1.0f + __expf(-X[tid]));  // 이미 BW 천장 근접
 - "속도 상위권" 절대 목표 → "ncu 메트릭 *개선* 곡선 + percentile 검증점"으로 완화 (Task 0 반영, 상위권 자체 아님).
 - 컴파일러/perf 직군 어필 → AX 메인 + 저수준 적용력 보조.
 - 문제 선별 → 전수 + 자동 2트랙 분류.
+- **옛 사양서 [[HANDOFF-SPEC]]** (2026-06-18, Hermes 핸드오프) → 이 설계가 대체. §0 상위권 목표·§2 멀티-LLM 폴백은 폐기, §9.5 저장소 구조·§9.6 동시편집 규칙은 구현 시 재참조용으로 유효.

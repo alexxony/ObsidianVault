@@ -2,11 +2,12 @@
 title: Task 0 — 측정 가용성 검증 결과
 status: done
 created: 2026-06-22
-tags: [project, gpu, leetgpu, colab, ncu, feasibility, task0]
+tags: [gpu-solver, project, gpu, leetgpu, colab, ncu, feasibility, task0]
 ---
 
 # Task 0 — 측정 가용성 검증 (BLOCKING gate)
 
+> 🗂️ **인덱스: [[GPU-Solver-MOC]]**
 > [[2026-06-22-agentic-gpu-optimizer]] 구현 계획의 Task 0. spec [[2026-06-22-agentic-gpu-optimizer-design]] 섹션6 최우선 리스크("Pro 트레이스 필요성") 검증.
 
 ## 판정: **A — 진행 가능**

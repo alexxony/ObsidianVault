@@ -2,11 +2,12 @@
 title: Agentic GPU Solver — 컨셉 메모
 status: brainstorming
 created: 2026-06-18
-tags: [project, gpu, agent, leetgpu, concept]
+tags: [gpu-solver, project, gpu, agent, leetgpu, concept]
 ---
 
 # Agentic GPU Solver — 컨셉 지도
 
+> 🗂️ **인덱스: [[GPU-Solver-MOC]]**
 > 기획 초기 브레인스토밍 결과. 완성 기획서가 아니라 방향성 메모.
 
 > **후속 문서 (포트폴리오 방향 재조준, 모두 제안 단계):**

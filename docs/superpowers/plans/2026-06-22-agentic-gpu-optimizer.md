@@ -2,11 +2,12 @@
 title: Agentic GPU Kernel Optimizer — 구현 계획
 status: proposal
 created: 2026-06-22
-tags: [project, gpu, agent, ax, leetgpu, portfolio, plan]
+tags: [gpu-solver, project, gpu, agent, ax, leetgpu, portfolio, plan]
 ---
 
 # Agentic GPU Kernel Optimizer Implementation Plan
 
+> 🗂️ **인덱스: [[GPU-Solver-MOC]]**
 > ⚠️ **제안(proposal)이며 확정 아님.** 하나의 구현 경로일 뿐, 시작 전 변경 가능.
 > 근거: [[2026-06-22-agentic-gpu-optimizer-design]] 설계 · 원류: [[agentic-gpu-solver-concept]] 컨셉.
 
