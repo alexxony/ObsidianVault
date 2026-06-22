@@ -25,6 +25,7 @@ tags: [gpu-solver, moc, index, portfolio]
 | [[2026-06-22-agentic-gpu-optimizer-design]] | 설계 스펙 (포지셔닝·아키텍처·가설엔진) | 🔵 proposal |
 | [[2026-06-22-agentic-gpu-optimizer]] | 구현 계획 (Task 0~10) | 🔵 proposal |
 | [[00-measurement-feasibility]] | Task 0 측정 검증 (판정 A) | 🟢 done |
+| [[01-hard-loop-poc]] | Hard 문제 최적화 루프 PoC (수동 1회전, 2.03× 가속) | 🟢 done |
 | [[HANDOFF-SPEC]] | 옛 Hermes 사양 | ⚫ deprecated |
 
 ## 핵심 결정 추적 (설계 진화)
@@ -37,7 +38,8 @@ tags: [gpu-solver, moc, index, portfolio]
 ## 현재 위치 / 다음
 
 - ✅ Task 0 (측정 가용성) **통과** — 신호원 확보.
-- ⏭️ 다음 = Task 1+ ([[2026-06-22-agentic-gpu-optimizer]]): 자동 생성 루프 + Trace Parser 착수.
+- ✅ [[01-hard-loop-poc]] **수동 루프 1회전 성공** — Hard 통과 + R0→R1 2.03× 가속 (가설 적중). 컨셉이 실제로 돈다는 증거.
+- ⏭️ 다음: R2(ncu로 진짜 병목 확정 후 변형) → 곡선 누적 → 자동 생성 루프 + Trace Parser 착수 ([[2026-06-22-agentic-gpu-optimizer]]).
 
 ## 폐기/역사
 
