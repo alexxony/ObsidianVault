@@ -39,6 +39,8 @@ tags: [gpu-solver, project, gpu, agent, ax, leetgpu, portfolio, design]
 
 이 트레이스→가설 매핑 로직 + 그 룰을 진화시키는 메타루프 = AX 깊이의 실체.
 
+> **선행연구 검증됨** ([[02-prior-art-survey]]): Sakana CUDA Engineer·CUDA-Agent·CudaForge 4종 모두 병목 해석을 **LLM에 맡김**. "결정론적 룰DB + 측정 피드백 진화"는 미충족 빈틈 = 우리 존재 이유. CudaForge가 가장 유사하나 Judge LLM이 NCU를 reasoning으로 판정(우리와 정반대) = 대조군. 단 인접 선행(NVIDIA DSL+SOL roofline 결정론 분류) 추가 조사 필요. **리스크: "룰이 LLM 판정보다 낫다"는 우리 PoC로 입증할 가설 — 아직 미증명.**
+
 **포폴 결과물 = 곡선 + 로그.** 단순 "통과율" 아님:
 - percentile 상승 곡선 — 각 상승점에 "어떤 병목을 어떤 가설로 고쳤나" 로그가 붙음.
 - 이 로그가 수동 루프와의 격차이자 면접 방어선.
