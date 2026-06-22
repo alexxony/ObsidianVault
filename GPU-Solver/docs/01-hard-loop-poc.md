@@ -102,3 +102,11 @@ FFN `silu(gate)*up` 융합 (ncu 126μs, 메모리바운드 확정, 비중 ~33%).
 - [ ] R3: FFN `silu(gate)*up` 융합 (torch.compile / Triton) — ncu 126μs 타깃, 메모리바운드 확정.
 - [ ] 곡선 누적: R0→R1→R2→R2'→R3 latency 곡선 + 라운드별 가설 로그(반증 2건 포함) = 포폴 결과물(곡선+로그).
 - [ ] LeetGPU 제출로 실제 PASS 도장 + percentile 교차검증 (Pro).
+
+## 자동화 결정 (수동 핸드오프 통증 → 시스템 1순위)
+
+복붙 핸드오프(나↔Colab↔결과)가 루프 못 닫는 병목. [[2026-06-22-agentic-gpu-optimizer-design]] Runner/Trace Parser가 먹을 대상. 다음 세션 구현 방향 3건 확정:
+
+1. **단일소스 = `.py` (ipynb 폐기).** probe 따로 안 만듦(이중작성 금지, 교훈1) → `solve.py --check|--bench|--profile` argparse. git diff 깨끗, nsys/ncu가 .py 직접 먹음, LLM 파일 통째 수정 쉬움. ipynb 장점(인터랙티브)은 무인 루프엔 불필요.
+2. **Runner = VSCode↔Colab SSH 터널.** colab-ssh/cloudflared로 A100 셸 접근 → scp로 solve.py 보내고 `python solve.py` 실행, 출력 회수. 복붙 0 = Runner 실물.
+3. **Trace Parser = 프로파일 파일저장 + 요약만 회수 (토큰 99%↓).** 오늘 ncu CSV 247열×165행이 통째 컨텍스트로 들어와 토큰 수만 소모. 대신 `ncu --csv -o p.csv` → `parse.py`가 nvtx 구간 합산 → top-5 커널 JSON(~50토큰)만 LLM에. **측정 순서: nsys(타임라인, 싸고 빠름) 먼저 → 병목 구간 → 의심 커널만 ncu(replay 느림) 깊이.** 둘 다 Colab A100서 동작 확인(ncu 됨=권한 OK), 병용 가능.
