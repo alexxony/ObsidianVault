@@ -88,6 +88,39 @@ R1까진 병목이 눈에 뻔함(score 행렬). R2부터 **ncu per-kernel 트레
 
 FFN `silu(gate)*up` 융합 (ncu 126μs, 메모리바운드 확정, 비중 ~33%). torch.compile 한 줄 또는 직접 Triton 융합 커널.
 
+## R4 — 새 스택 재실행 + flash 4D 재발견 (2026-06-24)
+
+위 표는 옛 스택(A100-80GB, 옛 torch) 기록. **새 스택(A100-SXM4-40GB, torch 2.11.0+cu128)** 으로 자동 루프 baseline 옮기며 재측정. 코드 = [[gpu_solver_test]] `solve.py` (단일소스).
+
+### 정적 가정 반증 → 재반증 (루프가 잡을 발견의 실물)
+
+새 스택 초기 세션은 SDPA를 **3D `(H,T,D)`** 로 호출 → `"No available kernel. Aborting."` → math fallback. 이걸 보고 **"이 스택서 flash 죽음, naive가 챔피언"** 으로 오결론, solve.py 헤더에 박음.
+
+이번 세션 측정으로 **그 오결론을 재반증.** 진범 = **호출 차원.** flash 커널은 **4D `(B,H,T,D)`** 필수. isolated probe:
+
+```
+flash avail: True | A100 (8,0)
+4D (1,8,T,64) flash: OK
+3D (8,T,64)   flash: FAIL "No available kernel. Aborting."
+```
+
+`q.transpose(0,1).unsqueeze(0)` 로 batch 차원 추가 → flash 정상 작동.
+
+| 변형 | latency (seq=2048, 40GB) | 배속 | 정확성 |
+|---|---|---|---|
+| naive (score materialise) | 3.244 ms | 1.00× | PASS |
+| **flash4d (4D SDPA)** | **1.445 ms** | **2.25×** | PASS |
+| R3: flash4d + torch.compile FFN 융합 | 1.806 ms | 0.80× | PASS ❌ **반증** |
+
+**판정:**
+1. **flash 챔피언 복귀.** 옛 스택 R1(2.03×) 재현 + 약간 상회(2.25×, 40GB). `solve()` 본체 = flash4d로 전환 (커밋 `0271aad`).
+2. **R3 torch.compile FFN 융합 = 세번째 반증.** flash4d 대비 회귀(1.445→1.806). 원인 = 작은 행렬(T×512)에서 max-autotune이 고른 triton mm이 eager cuBLAS sgemm보다 느림 + 컴파일 호출 오버헤드. → R2 교훈("융합 시도가 더 비싼 백엔드 깨움")과 동형. 다음 = R3' 직접 Triton elementwise 융합 (matmul은 cuBLAS 유지).
+
+### R4가 가르친 것 (= 시스템 가드 직결)
+
+4. **"커널 없음"은 빌드 문제 아니라 호출 형태 문제일 수 있다.** SDPA flash는 dtype(fp16/bf16/fp32 다 시도해도 3D면 실패)이 아니라 **4D 텐서**를 본다. → 시스템 Trace Parser 앞단: "백엔드 unavailable" 신호 받으면 dtype·차원 둘 다 검증 후 결론. 단일 시도로 "기능 죽음" 단정 금지.
+5. **자동 루프 baseline 정합성이 전부.** 잘못된 baseline(naive=챔피언) 위에서 최적화 라운드 돌면 전체 trajectory 오염. baseline 확정 = 측정 교차검증(`_reference`) 통과 + 챔피언 재측정 후 진행.
+
 ## 얻은 교훈 (실제 시스템 가드로 직결)
 
 1. **노트북판 ↔ 파일판 두 소스 손 복사 = 줄 누락 위험.** 이번에 probe 파일 만들 때 `h = _rmsnorm(x, w1)` 줄 누락 → `NameError`. 노트북판은 멀쩡했음.
@@ -99,8 +132,10 @@ FFN `silu(gate)*up` 융합 (ncu 126μs, 메모리바운드 확정, 비중 ~33%).
 ## 다음
 
 - [x] R2: ncu per-kernel 프로파일 → 병목 확정(elementwise 메모리바운드) → GQA 제거 2회 변형 → 둘 다 반증, R1 챔피언 유지.
-- [ ] R3: FFN `silu(gate)*up` 융합 (torch.compile / Triton) — ncu 126μs 타깃, 메모리바운드 확정.
-- [ ] 곡선 누적: R0→R1→R2→R2'→R3 latency 곡선 + 라운드별 가설 로그(반증 2건 포함) = 포폴 결과물(곡선+로그).
+- [x] R4(새 스택): flash 4D 재발견 → naive=챔피언 오결론 재반증 → `solve()`=flash4d 전환 (2.25×, 커밋 `0271aad`). §R4 참조.
+- [x] R3: FFN `silu*up` torch.compile 융합 = 반증(flash4d 1.445→1.806, 회귀). 작은 행렬서 triton mm < cuBLAS sgemm.
+- [ ] R3': FFN `silu*up` **직접 Triton elementwise 융합** (matmul=cuBLAS 유지). torch.compile 경로 폐기.
+- [ ] 곡선 누적: naive→flash4d→R3(반증)→R3' latency 곡선 + 라운드별 가설 로그(반증 3건 포함) = 포폴 결과물(곡선+로그).
 - [ ] LeetGPU 제출로 실제 PASS 도장 + percentile 교차검증 (Pro).
 
 ## 자동화 결정 (수동 핸드오프 통증 → 시스템 1순위)
