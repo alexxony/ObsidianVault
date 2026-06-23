@@ -8,7 +8,7 @@ tags: [gpu-solver, moc, index, portfolio]
 # GPU-Solver — Map of Content
 
 > 🧭 이 프로젝트 문서 허브. 모든 노트의 진입점 + 그래프 중심.
-> **한 줄 정의**: 트레이스를 해석하는 머리는 내가 짜고, 코드 재작성만 LLM에 시키는 **근거 기반 GPU 커널 최적화 루프** (포트폴리오 / AX 메인).
+> **한 줄 정의**: GPU 커널 최적화 루프. 분류→재작성 골격은 선행(CUDAMaster)이 풀었고 — 내 기여는 **룰표가 측정 피드백으로 진화한다는 것** (포트폴리오 / AX 메인). 근거: [[2026-06-22-agentic-gpu-optimizer-design]] §1.
 
 ## 읽는 순서 (신규 진입자용)
 
@@ -27,6 +27,7 @@ tags: [gpu-solver, moc, index, portfolio]
 | [[00-measurement-feasibility]] | Task 0 측정 검증 (판정 A) | 🟢 done |
 | [[01-hard-loop-poc]] | Hard 문제 최적화 루프 PoC (수동 R0→R2', ncu 병목 확정 + 반증 2건) | 🟢 done |
 | [[02-prior-art-survey]] | 사전 탐사 — 선행연구 4종 비교, 차별점 검증 | 🟢 done |
+| `~/workspace/gpu_solver_test/loop/` | 자동 루프 골격 (코드, 별도 git repo) | 🟢 골격 done / 글루 stub |
 | [[HANDOFF-SPEC]] | 옛 Hermes 사양 | ⚫ deprecated |
 
 ## 핵심 결정 추적 (설계 진화)
@@ -41,7 +42,8 @@ tags: [gpu-solver, moc, index, portfolio]
 - ✅ Task 0 (측정 가용성) **통과** — 신호원 확보.
 - ✅ [[01-hard-loop-poc]] **수동 루프 R0→R2'** — R1 flash 2.03× 적중, R2/R2' GQA 반증 2건(R1 챔피언 유지). ncu로 진짜 병목(elementwise 메모리바운드) 확정. 루프가 측정으로 굴러감 증명.
 - ✅ [[02-prior-art-survey]] **차별점 검증 (2라운드) — 절반 죽고 절반 살았다.** ❌ "결정론 룰 라벨→LLM 재작성→측정검증" = CUDAMaster(arXiv 2603.07169)가 이미 함(신규 아님). ✅ **룰DB 진화 메타루프 = 6개 선행 전부 정적, 우리만 = 유일 차별점.** ⚠️ 더 날카로운 후보 = roofline 라벨 coarseness 극복.
-- ⏭️ 다음: (a) **차별점 재정의** — "진화 메타루프 + coarseness 극복"으로 design spec 포지셔닝 압축, CUDAMaster 30%/NVIDIA roofline 공식 시드룰 차용. (b) Runner(SSH) + Trace Parser + solve.py 단일소스 → R3.
+- ✅ **자동 루프 골격 7파일 — GPU 없이 로컬 self-check PASS.** 코드 = `~/workspace/gpu_solver_test/loop/` (독립 git repo). 순수 로직(★Trace Parser·Hypothesis Engine·Rule Evolver·Ledger) 완결. **차별점 E2E 실증**: 틀린 정적 임계값이 측정 피드백으로 신뢰도 0.5→0.0 강등→폐기→다음 후보 전환. 정적(CUDAMaster류)은 불변 = 격차 증명(성공기준 b 충족). 글루(Generator/Gate/Profiler) = stub, Colab 대기.
+- ⏭️ 다음: **Colab 연결** — glue.py stub 3개를 Real로 교체 (RealGenerator=LLM API, RealGate=challenge.py reference_impl atol 비교, RealProfiler=ncu). torch/triton/GPU + API 키 필요. 첫 자동 라운드 = Llama 블록 문제.
 
 ## 폐기/역사
 
