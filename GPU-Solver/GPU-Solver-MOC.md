@@ -25,7 +25,7 @@ tags: [gpu-solver, moc, index, portfolio]
 | [[2026-06-22-agentic-gpu-optimizer-design]] | 설계 스펙 (포지셔닝·아키텍처·가설엔진) | 🔵 proposal |
 | [[2026-06-22-agentic-gpu-optimizer]] | 구현 계획 (Task 0~10) | 🔵 proposal |
 | [[00-measurement-feasibility]] | Task 0 측정 검증 (판정 A) | 🟢 done |
-| [[01-hard-loop-poc]] | Hard 문제 최적화 루프 PoC (수동 R0→R2' + §R4 새 스택 flash 4D 재발견, 반증 3건) | 🟢 done |
+| [[01-hard-loop-poc]] | Hard 최적화 루프 PoC (R0→R2' + §R4~R7 새 스택: flash 4D·TF32로 누적 3.86×, 반증/기각 다수=룰 진화) | 🟢 done |
 | [[02-prior-art-survey]] | 사전 탐사 — 선행연구 4종 비교, 차별점 검증 | 🟢 done |
 | `~/workspace/gpu_solver_test/loop/` | 자동 루프 골격 (코드, 별도 git repo) | 🟢 골격 done / 글루 stub |
 | [[HANDOFF-SPEC]] | 옛 Hermes 사양 | ⚫ deprecated |
@@ -43,8 +43,9 @@ tags: [gpu-solver, moc, index, portfolio]
 - ✅ [[01-hard-loop-poc]] **수동 루프 R0→R2'** — R1 flash 2.03× 적중, R2/R2' GQA 반증 2건(R1 챔피언 유지). ncu로 진짜 병목(elementwise 메모리바운드) 확정. 루프가 측정으로 굴러감 증명.
 - ✅ [[02-prior-art-survey]] **차별점 검증 (2라운드) — 절반 죽고 절반 살았다.** ❌ "결정론 룰 라벨→LLM 재작성→측정검증" = CUDAMaster(arXiv 2603.07169)가 이미 함(신규 아님). ✅ **룰DB 진화 메타루프 = 6개 선행 전부 정적, 우리만 = 유일 차별점.** ⚠️ 더 날카로운 후보 = roofline 라벨 coarseness 극복.
 - ✅ **자동 루프 골격 7파일 — GPU 없이 로컬 self-check PASS.** 코드 = `~/workspace/gpu_solver_test/loop/` (독립 git repo). 순수 로직(★Trace Parser·Hypothesis Engine·Rule Evolver·Ledger) 완결. **차별점 E2E 실증**: 틀린 정적 임계값이 측정 피드백으로 신뢰도 0.5→0.0 강등→폐기→다음 후보 전환. 정적(CUDAMaster류)은 불변 = 격차 증명(성공기준 b 충족). 글루(Generator/Gate/Profiler) = stub, Colab 대기.
-- ✅ **Colab 터널 + 새 스택 baseline 확정** ([[01-hard-loop-poc]] §R4) — SSH 터널(cloudflared) + `colabrun` 래퍼로 A100-40GB 실측. **flash 4D 재발견**: 이전 세션 "flash 죽음→naive 챔피언" = 3D 호출 버그 오결론, 재반증. `solve()`=flash4d 전환(2.25×, 커밋 `0271aad`). R3 torch.compile FFN 융합 = 세번째 반증.
-- ⏭️ 다음: (a) **glue.py stub→Real** (RealGenerator=LLM API, RealGate=challenge.py reference atol, RealProfiler=nsys/ncu) → 첫 자동 라운드. (b) **R3' 직접 Triton FFN 융합** (torch.compile 폐기).
+- ✅ **Colab 터널 + 새 스택 baseline 확정** ([[01-hard-loop-poc]] §R4) — SSH 터널(cloudflared) + `colabrun` 래퍼로 A100-40GB 실측. **flash 4D 재발견**: 이전 세션 "flash 죽음→naive 챔피언" = 3D 호출 버그 오결론, 재반증. `solve()`=flash4d 전환(2.25×, 커밋 `0271aad`).
+- ✅ **수동 루프 6라운드 완주 → 누적 3.86×** ([[01-hard-loop-poc]] §R4~R7). 챔피언 = flash4d+TF32 0.857ms (naive 3.244 대비). **큰 이득 2개**: 4D flash(2.26×)·TF32(R5, matmul 천장 52.7% 직격 →3.86×). **반증/기각 4개 = 전부 룰 정밀화**: R3 torch.compile 회귀 / R3' Triton 융합 약적중(커널-39%지만 비중 2.5%<5%) / bf16 동률(TF32 이미 텐서코어) / fused_ffn 승격 측정기각(게이트통과≠승격) / R7 elementwise **착수 전 룰 선험 기각**(R6 학습을 다음 라운드에 적용=헛 라운드 절약). **= 룰DB 진화(차별점)의 실물 증거 다수.** ncu 천장 재편 추적: matmul 52.7%→20.3%, flash_attn 28.7%→48.6%(신1위).
+- ⏭️ 다음: (a) **glue.py stub→Real** (RealGenerator=LLM API, RealGate=challenge.py reference atol, RealProfiler=nsys/ncu) → 첫 자동 라운드. (b) R8: 유일 잔여 천장 flash_attn 48.6%(알고리즘 영역, 난이도↑) — dtype·단순융합 카드 소진.
 
 ## 폐기/역사
 
