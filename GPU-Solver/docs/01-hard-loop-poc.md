@@ -118,6 +118,31 @@ flash avail: True | A100 (8,0)
 2. **R3 torch.compile FFN 융합 = 세번째 반증.** flash4d 대비 회귀(1.433→1.806). 원인 = 작은 행렬(T×512)에서 max-autotune이 고른 triton mm이 eager cuBLAS sgemm보다 느림 + 컴파일 호출 오버헤드. → R2 교훈("융합 시도가 더 비싼 백엔드 깨움")과 동형.
 3. **R3' 직접 Triton 융합 = 약한 적중 (커밋 `145e4a7`).** silu*up elementwise만 1커널(`_silu_mul_kernel`), matmul=cuBLAS 유지. ncu 커널: eager silu 15μs+mul 21μs=36μs(2커널) → fused 21.8μs(1커널) = **-39% 커널 절감**. 그러나 전체는 1.01×(노이즈 가까움). **이유 = FFN elementwise 비중 36/1433 ≈ 2.5% < 5% 게이트.** 융합은 옳으나(회귀 아님, torch.compile R3과 반대) 타깃이 작아 천장 효과 미미.
 
+### R5 — ncu 전체 천장 식별 → TF32 (이번 세션 최대 이득)
+
+R3'까지 FFN만 봄. flash4d **전체 ncu 분포** 떠서 진짜 천장 식별 (`ncu --metrics gpu__time_duration.sum --csv`, 비중 %):
+
+| 커널 | 비중 | ≥5% |
+|---|---|---|
+| matmul (sgemm) | **52.7%** | ★ |
+| flash_attn | **28.7%** | ★ |
+| elementwise (rope/residual) | **7.7%** | ★ |
+| mul | **6.5%** | ★ |
+| rmsnorm/reduce | 2.8% | |
+| silu | 0.9% | |
+| repeat_interleave | 0.8% | |
+
+**충격 발견: matmul = 52.7% 압도적 1위.** 옛 PoC 교훈("matmul 공짜, elementwise가 천장")이 이 스택선 **뒤집힘.** 원인 = fp32 sgemm이 텐서코어 미사용.
+
+**R5 가설(룰 발화)**: "matmul 52.7% = fp32 sgemm 텐서코어 미사용 → TF32로 텐서코어 태움." 변형 = `torch.set_float32_matmul_precision("high")` 전역 1줄 (코드 구조 무변경).
+
+| 변형 | latency | 배속(vs flash4d) | 정확성 |
+|---|---|---|---|
+| flash4d fp32 | 1.432 ms | 1.00× | PASS (maxdiff 2e-7) |
+| **flash4d + TF32 (R5)** | **0.840 ms** | **1.71×** | PASS (maxdiff 3.7e-4 < 1e-3) |
+
+**판정: R5 대박 적중. 이번 세션 최대 이득.** 누적 **naive 3.244 → flash4d 1.432 → +TF32 0.840 = 3.86×** (커밋 `9e09b9b`). ncu 천장 식별→타깃 변형→재측정 루프가 큰 이득(71%) 직격. FFN 융합(1.4%)과 차원 다름 = "≥5% 게이트" 룰의 가치 입증. 부수: TF32 후 fused_ffn(0.98)>flash4d(0.96) — matmul 빨라지며 비중 재편, 챔피언=flash4d 단독.
+
 ### R4가 가르친 것 (= 시스템 가드 직결)
 
 4. **"커널 없음"은 빌드 문제 아니라 호출 형태 문제일 수 있다.** SDPA flash는 dtype(fp16/bf16/fp32 다 시도해도 3D면 실패)이 아니라 **4D 텐서**를 본다. → 시스템 Trace Parser 앞단: "백엔드 unavailable" 신호 받으면 dtype·차원 둘 다 검증 후 결론. 단일 시도로 "기능 죽음" 단정 금지.
@@ -139,7 +164,9 @@ flash avail: True | A100 (8,0)
 - [x] R3: FFN `silu*up` torch.compile 융합 = 반증(flash4d 1.445→1.806, 회귀). 작은 행렬서 triton mm < cuBLAS sgemm.
 - [x] R3': FFN `silu*up` **직접 Triton 융합** (`_silu_mul_kernel`, matmul=cuBLAS). 커널 -39%지만 비중 2.5%<5% → 전체 1.01×(약한 적중). 커밋 `145e4a7`. 룰 "≥5% 게이트" 자기검증.
 - [ ] 곡선 누적: naive→flash4d→R3(반증)→R3'(약적중) latency 곡선 + 라운드별 가설 로그 = 포폴 결과물.
-- [ ] 진짜 천장: flash4d 전체 ncu 분포 → 비중 ≥5% 커널 식별 (지금까지 FFN만 봄, 전체 미관측).
+- [x] 진짜 천장: flash4d 전체 ncu 분포 → matmul 52.7%/flash 28.7%/elementwise 7.7%/mul 6.5% (≥5% 4개). §R5.
+- [x] R5: matmul 천장 → TF32 → **0.840ms, 누적 3.86×** (이번 세션 최대 이득, 커밋 `9e09b9b`).
+- [ ] R6 후보: 남은 천장 = flash_attn 28.7%(이미 챔피언) / elementwise 7.7%(rope·residual 융합) / matmul 잔여(bf16면 더↓). TF32 후 재프로파일 필요(비중 재편됨).
 - [ ] LeetGPU 제출로 실제 PASS 도장 + percentile 교차검증 (Pro).
 
 ## 자동화 결정 (수동 핸드오프 통증 → 시스템 1순위)
