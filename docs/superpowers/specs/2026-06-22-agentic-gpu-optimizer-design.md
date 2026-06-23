@@ -39,7 +39,12 @@ tags: [gpu-solver, project, gpu, agent, ax, leetgpu, portfolio, design]
 
 이 트레이스→가설 매핑 로직 + 그 룰을 진화시키는 메타루프 = AX 깊이의 실체.
 
-> **선행연구 검증됨** ([[02-prior-art-survey]]): Sakana CUDA Engineer·CUDA-Agent·CudaForge 4종 모두 병목 해석을 **LLM에 맡김**. "결정론적 룰DB + 측정 피드백 진화"는 미충족 빈틈 = 우리 존재 이유. CudaForge가 가장 유사하나 Judge LLM이 NCU를 reasoning으로 판정(우리와 정반대) = 대조군. 단 인접 선행(NVIDIA DSL+SOL roofline 결정론 분류) 추가 조사 필요. **리스크: "룰이 LLM 판정보다 낫다"는 우리 PoC로 입증할 가설 — 아직 미증명.**
+> **선행연구 검증됨** ([[02-prior-art-survey]], 2026-06-23 roofline 2차 조사로 수정): 차별점 **절반 죽음.**
+> - ❌ **"결정론 룰 라벨 → LLM 재작성만 → 측정검증" = 신규 아님.** **CUDAMaster**(arXiv 2603.07169)가 정확히 함 — Otsu 캘리브 30% 임계값표 → 멀티에이전트 LLM 재작성 → 매라운드 재프로파일. KernelAgent도 하이브리드로 함. Nsight Compute 자체가 사용자작성 룰파일로 병목 finding 방출 = 기본 분류는 부분 재발명.
+> - ✅ **"룰DB가 결과 피드백으로 진화하는 메타루프"(§3.3 Rule Evolver) = 6개 선행 어디에도 없음** (전부 정적/일회캘리브). **유일 차별점.**
+> - ⚠️ **더 날카로운 방어선 후보**: roofline 라벨 coarseness 극복(latency/occupancy/L2 stall을 'memory bound'로 오판 — Nsight 한계). 진화 per se보다 이게 진짜 novelty일 수 있음.
+> - **차용**: NVIDIA roofline 공식 + CUDAMaster 30% 임계값표 = 시드 룰(§3.2) 근거로 직접 차용(재발명 X).
+> - **리스크 ↑**: 차별점이 진화 메타루프 하나에 전부 걸림 → 못 하면 CUDAMaster 열등복제. "진화 룰 > 정적 임계값" 입증이 PoC 핵심 과제.
 
 **포폴 결과물 = 곡선 + 로그.** 단순 "통과율" 아님:
 - percentile 상승 곡선 — 각 상승점에 "어떤 병목을 어떤 가설로 고쳤나" 로그가 붙음.

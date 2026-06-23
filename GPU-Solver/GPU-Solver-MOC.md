@@ -40,8 +40,8 @@ tags: [gpu-solver, moc, index, portfolio]
 
 - ✅ Task 0 (측정 가용성) **통과** — 신호원 확보.
 - ✅ [[01-hard-loop-poc]] **수동 루프 R0→R2'** — R1 flash 2.03× 적중, R2/R2' GQA 반증 2건(R1 챔피언 유지). ncu로 진짜 병목(elementwise 메모리바운드) 확정. 루프가 측정으로 굴러감 증명.
-- ✅ [[02-prior-art-survey]] **차별점 검증** — 선행 4종(Sakana/CUDA-Agent/CudaForge/robust-kbench) 전부 병목 해석을 LLM에 맡김. 우리 "결정론적 룰DB + 진화 메타루프" = 미충족 빈틈. "재조합 함정" 아님.
-- ⏭️ 다음: (a) NVIDIA DSL+SOL roofline 분류 추가 조사(인접 선행) → (b) Runner(SSH) + Trace Parser 구현 → (c) solve.py 단일소스 → R3.
+- ✅ [[02-prior-art-survey]] **차별점 검증 (2라운드) — 절반 죽고 절반 살았다.** ❌ "결정론 룰 라벨→LLM 재작성→측정검증" = CUDAMaster(arXiv 2603.07169)가 이미 함(신규 아님). ✅ **룰DB 진화 메타루프 = 6개 선행 전부 정적, 우리만 = 유일 차별점.** ⚠️ 더 날카로운 후보 = roofline 라벨 coarseness 극복.
+- ⏭️ 다음: (a) **차별점 재정의** — "진화 메타루프 + coarseness 극복"으로 design spec 포지셔닝 압축, CUDAMaster 30%/NVIDIA roofline 공식 시드룰 차용. (b) Runner(SSH) + Trace Parser + solve.py 단일소스 → R3.
 
 ## 폐기/역사
 
