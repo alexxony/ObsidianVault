@@ -101,6 +101,9 @@ tags: [gpu-solver, prior-art, survey, research, agentic, cuda, kernel-optimizati
 ## 미해결 (open questions) — 추가 조사/검증 필요
 
 1. **진화 룰이 정적 룰보다 정말 나은 라벨/결과를 내나?** = 차별점이자 미검증 가설. 어떤 실험이 "진화 룰 > CUDAMaster 고정 임계값"을 증명? → **우리 PoC의 핵심 입증 과제.**
+   - **1차 검증 시도 (2026-06-24, [[gpu_solver_test]] `loop/verify_evolution.py`, 커밋 `c76282b`):** 이번 세션 실측 ncu 분포(TF32 전/후)로 정적 게이트(5% 고정) vs 진화 게이트(Otsu) 결정 비교. 표면상 진화 우수(나쁜결정 3→2)였으나 **신뢰 불가 = 현 스케일선 미입증.** 세 결함: (a) Otsu가 trajectory의 5% 게이트 재현 못 함(0.345 도출 → matmul 큰이득도 컷, "헛수고 감소"가 사실 무차별 컷), (b) ground truth를 수동으로 박음(자의적), (c) 표본 5개 = Otsu 통계 무의미.
+   - **→ 우수성 성립 조건 도출:** (1) 여러 다른 문제(같은 블록 N회전 아님 — 임계가 문제마다 달라져야 진화 의미), (2) 수십+ 샘플(Otsu 유효), (3) 객관적 GT(실측 개선/미개선, 수동 라벨 금지). 이 조건 없이 evolver 진짜화 = "돌아가는 stub"는 되나 우수성 미입증. **evolver 진짜화 보류, 조건 충족 후 재개.**
+   - **함의:** 같은 문제 N회전(이번 R3~R7)으론 임계가 거의 안 변함 → "매 라운드 재계산"이 정적 대비 이득 없음. 진화의 가치는 **문제 간 일반화**에 있을 가능성 = 4번(coarseness)과 합쳐 재설계 후보.
 2. **CUDAMaster도 측정 ncu 트레이스를 라벨함** → "우리는 측정 트레이스 라벨" 구분은 SOLAR/Nsight-분석경로 대비만 차별, CUDAMaster 대비는 아님. 측정 vs 분석은 차별점 못 됨.
 3. **결정론 룰엔진 vs LLM 생성 리포트** — DSL+SOL은 SOL 리포트를 LLM 생성(NVIDIA가 실제 출시한 경로), CUDAMaster는 결정론. 우리는 결정론 채택 → 환각/오류 줄이는 게 실측 이득인지 입증 필요.
 4. **★ coarseness 극복이 진짜 방어선?** 기하/임계값 roofline 라벨이 latency/occupancy/L2 stall을 오판하는 한계를, 진화 룰DB가 근본원인까지 세분 가능한가. **진화 per se보다 이게 방어 가능한 진짜 novelty일 수 있음** — 다음 설계 핵심.
