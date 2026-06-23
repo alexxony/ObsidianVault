@@ -41,11 +41,16 @@ tags: [gpu-solver, moc, index, portfolio]
 
 - ✅ Task 0 (측정 가용성) **통과** — 신호원 확보.
 - ✅ [[01-hard-loop-poc]] **수동 루프 R0→R2'** — R1 flash 2.03× 적중, R2/R2' GQA 반증 2건(R1 챔피언 유지). ncu로 진짜 병목(elementwise 메모리바운드) 확정. 루프가 측정으로 굴러감 증명.
-- ✅ [[02-prior-art-survey]] **차별점 검증 (2라운드) — 절반 죽고 절반 살았다.** ❌ "결정론 룰 라벨→LLM 재작성→측정검증" = CUDAMaster(arXiv 2603.07169)가 이미 함(신규 아님). ✅ **룰DB 진화 메타루프 = 6개 선행 전부 정적, 우리만 = 유일 차별점.** ⚠️ 더 날카로운 후보 = roofline 라벨 coarseness 극복.
-- ✅ **자동 루프 골격 7파일 — GPU 없이 로컬 self-check PASS.** 코드 = `~/workspace/gpu_solver_test/loop/` (독립 git repo). 순수 로직(★Trace Parser·Hypothesis Engine·Rule Evolver·Ledger) 완결. **차별점 E2E 실증**: 틀린 정적 임계값이 측정 피드백으로 신뢰도 0.5→0.0 강등→폐기→다음 후보 전환. 정적(CUDAMaster류)은 불변 = 격차 증명(성공기준 b 충족). 글루(Generator/Gate/Profiler) = stub, Colab 대기.
+- ✅ [[02-prior-art-survey]] **차별점 검증 (2라운드) — 절반 죽고 절반 살았다.** ❌ "결정론 룰 라벨→LLM 재작성→측정검증" = CUDAMaster(arXiv 2603.07169)가 이미 함(신규 아님). ✅ **룰DB 진화 메타루프 = 6개 선행 전부 정적, 우리만 = 차별점 후보.** ⚠️ 더 날카로운 후보 = roofline 라벨 coarseness 극복.
+- ⚠️ **차별점 정직화 (2026-06-24) — "개념 OK, 이득 미입증"으로 후퇴** ([[2026-06-22-agentic-gpu-optimizer-design]] §1 두 층 분리). 진화 우수성 1차 검증(`verify_evolution.py`, [[02-prior-art-survey]] 미해결1) = **같은 문제 N회전선 임계 거의 불변 → 정적 대비 이득 無.** coarseness도 **(A) 개념층**(roofline에 비중·텐서코어 축 없음=문제 독립, 자명, R3'/R5/R6 증거)은 단단하나 **(B) 이득층**(우리 세분이 더 낫다)은 이 한 문제서만 관찰=미입증. **핵심 교훈: 한 문제 데이터로 일반 우수성 주장 금지.** PoC 핵심 과제 = "추가 축(비중·텐서코어·진화)이 **다문제서** 측정 이득" 입증 (미완).
+- ✅ **자동 루프 골격 7파일 — GPU 없이 로컬 self-check PASS.** 코드 = `~/workspace/gpu_solver_test/loop/` (독립 git repo). 순수 로직(★Trace Parser·Hypothesis Engine·Rule Evolver·Ledger) 완결. 진화 = **신뢰도 ±1 + 폐기**까지 실동작(틀린 임계값 0.5→0.0 강등→폐기). 글루(Generator/Gate/Profiler) = stub, Colab 대기.
+- ⚠️ **시드룰 정합 + evolver 갭 발견 (2026-06-24)** — 시드룰을 PoC R3~R7 trajectory 룰(비중 게이트·TF32·텐서코어·융합)로 교체(커밋 `ca1d56d`), signals에 weight_pct·tensorcore_active 추가. 4파일 self-check PASS. **단 차별점 핵심(새 룰 학습)은 미구현**: `evolver.propose_candidate`가 룰 조건 합성 못 하고 stub(`lambda:False`). 진짜화 시도 전 우수성 검증→미입증(위 항목)→**보류.**
 - ✅ **Colab 터널 + 새 스택 baseline 확정** ([[01-hard-loop-poc]] §R4) — SSH 터널(cloudflared) + `colabrun` 래퍼로 A100-40GB 실측. **flash 4D 재발견**: 이전 세션 "flash 죽음→naive 챔피언" = 3D 호출 버그 오결론, 재반증. `solve()`=flash4d 전환(2.25×, 커밋 `0271aad`).
 - ✅ **수동 루프 6라운드 완주 → 누적 3.86×** ([[01-hard-loop-poc]] §R4~R7). 챔피언 = flash4d+TF32 0.857ms (naive 3.244 대비). **큰 이득 2개**: 4D flash(2.26×)·TF32(R5, matmul 천장 52.7% 직격 →3.86×). **반증/기각 4개 = 전부 룰 정밀화**: R3 torch.compile 회귀 / R3' Triton 융합 약적중(커널-39%지만 비중 2.5%<5%) / bf16 동률(TF32 이미 텐서코어) / fused_ffn 승격 측정기각(게이트통과≠승격) / R7 elementwise **착수 전 룰 선험 기각**(R6 학습을 다음 라운드에 적용=헛 라운드 절약). **= 룰DB 진화(차별점)의 실물 증거 다수.** ncu 천장 재편 추적: matmul 52.7%→20.3%, flash_attn 28.7%→48.6%(신1위).
-- ⏭️ 다음: (a) **glue.py stub→Real** (RealGenerator=LLM API, RealGate=challenge.py reference atol, RealProfiler=nsys/ncu) → 첫 자동 라운드. (b) R8: 유일 잔여 천장 flash_attn 48.6%(알고리즘 영역, 난이도↑) — dtype·단순융합 카드 소진.
+- ⏭️ 다음 — **차별점 입증이 최우선 (그게 프로젝트 존재 이유)**:
+  - **(핵심) 다문제 우수성 입증** — 여러 다른 GPU 커널(다른 백틀넥 분포)로 "추가 축(비중·텐서코어·진화)이 측정 이득"을 객관 GT로 증명. 이게 안 되면 차별점 = "개념 OK, 이득 미입증"에 머묾. GPU 다회 필요(큰 작업).
+  - (보조) glue.py stub→Real → 첫 자동 라운드. evolver propose_candidate 진짜화는 우수성 입증 후.
+  - (선택) R8 flash_attn 48.6% 추가 최적화 — 알고리즘 영역, 차별점과 무관한 곁가지.
 
 ## 폐기/역사
 
