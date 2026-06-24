@@ -147,9 +147,66 @@ Gate도 같은 RES에 실어 옴(passed/max_abs_err) → 별도 왕복 불필요
     tensorcore_active·load_eff·occupancy 등) 의존 → nsys(시간만)면 룰 6/7 죽음(특히 R5 핵심 `fp32_no_
     tensorcore`). `--launch-count 1`은 룰 신호 8개 전부 유지하며 6배 단축. 정밀도 약간↓(표본1)이나 PoC 충분.
 
+- [x] **A 인프라 — `runner.py` (로컬측 자동 루프) 코드 완성** (2026-06-24, 커밋 `8541351`).
+  `MailboxGlue` 어댑터 = harness glue(generate/check/profile)를 `MailboxProfiler.submit` 1왕복에
+  매핑(check+profile 캐시로 중복 왕복 방지). `FixedGenerator` = generate stub(solve.py 고정,
+  LLM은 후속). `run_problem(problem, seed_code, mailbox_dir, ledger_path, sync_fn, ...)`.
+  **self-check PASS** (fake 우편함, GPU·git·LLM 0): signal→match→evolve 흐름 4라운드 수렴, evolve
+  이벤트 4개. **단일문제 배관 연결 검증됨** — 다문제 차별점은 문제 입수 후.
+
 **미해결**:
 - [ ] PAT 주입 표준화 (env var `GPU_MAILBOX_TOKEN`, Colab Secrets).
 - [ ] 재시도 정책 (현재 timeout→MailboxTimeout 예외까지만, 재큐 미구현).
+
+## 🔖 재개 지점 (2026-06-24 세션 중단 — A 인프라 e2e 검증 직전)
+
+> **다음 세션 여기서 시작.** A 인프라 코드 전부 완성·push됨. 막힌 건 **Colab watch의 git pull 실패** 1건뿐 — 코드 아님, Colab git 설정 문제.
+
+### 지금까지 (전부 push 완료, loop repo `gpu-solver-loop` master)
+- 통신(우편함) ✅ · 측정(ncu `--launch-count 1`, 6배↓) ✅ · A 인프라 코드(`runner.py`) ✅
+- 최신 커밋: `8541351`(runner.py). executor `08b328b`, watch `d2d9644`.
+
+### 막힌 지점 — Colab watch `git pull` 실패 (진단 미완)
+증상: Cell 4 `watch.watch_loop` → `git_sync_push` → `git -C /content/gpu-mailbox pull -q --no-edit`
+→ `CalledProcessError non-zero exit`. watch가 예외 잡고 계속 재시도 → 같은 에러 도배.
+- **import는 통과** (watch 시작됨). reload 제거한 깨끗한 Cell 4(`import watch`만)면 import OK.
+- **PAT 토큰은 살아있음** (user 확인) → 인증 문제 아님.
+- **remote `gpu-mailbox` 정상** (빈 우편함, history 정상). divergent 아님.
+- **유력 원인**: Colab clone 후 `git config user.email/name` 미설정 → pull이 머지 ident 못 만들어 실패.
+  (Cell 2가 `git config --global user.*` 하지만 런타임 재시작 시 휘발 → Cell 2 미재실행이면 날아감.)
+- **진단 미완**: watch.py `_git`이 `capture_output=True`라 stderr 삼킴 → 에러 전문 못 봄.
+
+### 재개 절차 (다음 세션 첫 순서)
+1. **stderr 확보** — Colab 임시 셀:
+   ```python
+   import subprocess
+   r = subprocess.run(["git","-C","/content/gpu-mailbox","pull","--no-edit"],
+                      capture_output=True, text=True)
+   print("STDERR:", r.stderr); print("RC:", r.returncode)
+   ```
+   STDERR가 진범 확정 (user 미설정 / 인증 / 기타).
+2. **user 미설정이면** — Colab 셀에서:
+   `!git config --global user.email "colab@gpu-solver" && git config --global user.name "colab-watch"`
+   (또는 Cell 2 통째 재실행 — 거기 user config 있음.)
+3. **watch 재기동** — Cell 4(`import watch` + `watch.watch_loop(MB, poll_s=5, max_iters=120)`).
+   reload 전부 제거(노트북 import서 `from . import` 충돌 유발).
+4. **로컬 runner 실행 (= 에이전트)** — watch 살아있으면 에이전트가 로컬서:
+   `run_problem("solve_llama", <solve.py 텍스트>, "<mailbox clone>", "<ledger.jsonl>", sync_fn=git_pull_push)`
+   → REQ 자동 push, RES 자동 pull, signal→match→evolve. **= A 인프라 e2e 검증.**
+5. **검증점**: ledger에 라운드 기록 + RES.signal_dict가 RES-real01(bw_pct 0.524 등)과 일치 → 배관 정확.
+   고정코드라 metric 정체 → 빠른 수렴. evolver는 confidence ±1만(단일문제). **차별점(룰 폐기·후보)은 다문제.**
+
+### 그 다음 (e2e 검증 후)
+- **다문제 차별점 실험** — user가 LeetGPU easy 1 + middle 1 가져옴(준비 중). 각 문제 = reference_impl +
+  입력생성 + solve 시드. challenge 포맷 맞춤 → 다문제 라운드 = evolver 룰 진화 관찰 = **공개 재료**.
+- **B(통신 편의)** — PAT→Colab Secrets, 셀 합치기. 비핵심, 막판.
+- 비용: A 본체(실험 디버깅)는 토큰 큼. 1차 공개 전까진 에이전트가 수행(user 승인).
+
+### 운용 메모 (재발 방지)
+- Colab Cell 4는 `import watch` 1줄만 (reload·`import executor,signals` 제거 — 노트북 import 충돌).
+- `watch.py`는 `loop/` 하위 → `sys.path`에 `/content/gpu-solver-loop/loop` 필요.
+- watch git pull 실패 시 watch는 안 죽고 재시도(도배) → 멈추려면 셀 정지.
+- `colab_mailbox.ipynb` = watch 전용. 측정·실험 셀 넣지 않음(별도 임시 셀, 폐기).
 - [ ] `mailbox.MailboxProfiler` 로컬측 ↔ ledger/harness/evolver 연결 (signal_dict → 자동 루프 본체).
 
 ## 다음 세션 착수 체크리스트 (우편함 repo 생성 + 첫 자동 라운드)
