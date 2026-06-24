@@ -126,6 +126,8 @@ Gate도 같은 RES에 실어 옴(passed/max_abs_err) → 별도 왕복 불필요
 - [x] `mailbox.py` `MailboxProfiler` (로컬측) — sync_fn 주입, GPU·git·네트워크 0 self-check PASS. 커밋 `5348fd6`.
 - [x] `watch.py` 골격 (Colab측) — 폴링/멱등/실패격리 self-check PASS. `execute_request`만 stub. 커밋 `1889a17`.
 - [x] git 충돌 회피 — cmd/ vs result/ 분리로 구조적 무충돌 (설계 확정).
+- [x] **배관 왕복 실환경 실증 PASS** (2026-06-24). 로컬 push `REQ-smoke01` → Colab watch `git pull` → `execute_request`(stub) → `RES-smoke01.json` push → 로컬 pull 확인 = 완전 1왕복. 스키마 계약(`id/passed/signal_dict/latency_us/error`) 정상, `done/smoke01` 멱등 마커 동작, 실패 격리(NotImplementedError → error RES, watch 안 죽음) 확인. **배관 굴러감 증명 완료** — 남은 건 `execute_request` 실구현(진짜 GPU 작업)뿐.
+  - 운용 메모: `watch.py`는 repo 루트 아니라 `loop/watch.py`. Colab 셀은 `cd .../loop` + `sys.path`에 `/loop` 추가 필요.
 
 **미해결**:
 - [ ] `execute_request` Colab 구현 — challenge.py reference_impl gate + ncu 프로파일.
