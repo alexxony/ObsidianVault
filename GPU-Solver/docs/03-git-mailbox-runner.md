@@ -141,14 +141,15 @@ Gate도 같은 RES에 실어 옴(passed/max_abs_err) → 별도 왕복 불필요
     ≠ 수동 PoC Event e2e=0.84ms([[01-hard-loop-poc]] R5). **버그 아님, 측정법 차이.** 룰/게이트는
     비율 신호(bw_pct·tensorcore_active)로 판단하지 절대 latency 아님 → 파이프 유효. e2e 비교
     필요 시 executor에 Event 측정 추가(미구현, 현 PoC 불요).
-  - ⚠️ **운용 병목 — ncu 12분/라운드**: ncu가 전 커널×메트릭8 replay = 라운드당 ~12분. 자동
-    루프 N회 = N×12분. 최적화 후보: 메트릭 수 축소 or **nsys 전환**(replay 없음, [[01-hard-loop-poc]]
-    s1-165 기본 권장). 현 PoC(배관 실증)는 무시 가능, 다문제 루프 전 해결 필요.
+  - ✅ **ncu 병목 해소 — `--launch-count 1`** (2026-06-24, 커밋 `08b328b`). 측정으로 주범 격리:
+    baseline 32.6s(55커널) vs **launch-count1 5.7s(6배↓)** vs metrics3 29.9s(거의 무변). **주범 = 커널당
+    replay 횟수, 메트릭 수 아님.** nsys 전환은 기각 — rules.py 7룰 중 6개가 ncu 전용 신호(bw_pct·
+    tensorcore_active·load_eff·occupancy 등) 의존 → nsys(시간만)면 룰 6/7 죽음(특히 R5 핵심 `fp32_no_
+    tensorcore`). `--launch-count 1`은 룰 신호 8개 전부 유지하며 6배 단축. 정밀도 약간↓(표본1)이나 PoC 충분.
 
 **미해결**:
 - [ ] PAT 주입 표준화 (env var `GPU_MAILBOX_TOKEN`, Colab Secrets).
 - [ ] 재시도 정책 (현재 timeout→MailboxTimeout 예외까지만, 재큐 미구현).
-- [ ] ncu 12분/라운드 병목 → nsys 전환 or 메트릭 축소 (다문제 자동 루프 전).
 - [ ] `mailbox.MailboxProfiler` 로컬측 ↔ ledger/harness/evolver 연결 (signal_dict → 자동 루프 본체).
 
 ## 다음 세션 착수 체크리스트 (우편함 repo 생성 + 첫 자동 라운드)
