@@ -27,6 +27,7 @@ tags: [gpu-solver, moc, index, portfolio]
 | [[00-measurement-feasibility]] | Task 0 측정 검증 (판정 A) | 🟢 done |
 | [[01-hard-loop-poc]] | Hard 최적화 루프 PoC (R0→R2' + §R4~R7 새 스택: flash 4D·TF32로 누적 3.86×, 반증/기각 다수=룰 진화) | 🟢 done |
 | [[02-prior-art-survey]] | 사전 탐사 — 선행연구 4종 비교, 차별점 검증 | 🟢 done |
+| [[03-git-mailbox-runner]] | Git-우편함 Runner 설계 (터널 제거, cmd/result 비동기) | 🔵 설계 done / 로컬측 구현 done |
 | `~/workspace/gpu_solver_test/loop/` | 자동 루프 골격 (코드, 별도 git repo) | 🟢 골격 done / 글루 stub |
 | [[HANDOFF-SPEC]] | 옛 Hermes 사양 | ⚫ deprecated |
 
@@ -47,9 +48,11 @@ tags: [gpu-solver, moc, index, portfolio]
 - ⚠️ **시드룰 정합 + evolver 갭 발견 (2026-06-24)** — 시드룰을 PoC R3~R7 trajectory 룰(비중 게이트·TF32·텐서코어·융합)로 교체(커밋 `ca1d56d`), signals에 weight_pct·tensorcore_active 추가. 4파일 self-check PASS. **단 차별점 핵심(새 룰 학습)은 미구현**: `evolver.propose_candidate`가 룰 조건 합성 못 하고 stub(`lambda:False`). 진짜화 시도 전 우수성 검증→미입증(위 항목)→**보류.**
 - ✅ **Colab 터널 + 새 스택 baseline 확정** ([[01-hard-loop-poc]] §R4) — SSH 터널(cloudflared) + `colabrun` 래퍼로 A100-40GB 실측. **flash 4D 재발견**: 이전 세션 "flash 죽음→naive 챔피언" = 3D 호출 버그 오결론, 재반증. `solve()`=flash4d 전환(2.25×, 커밋 `0271aad`).
 - ✅ **수동 루프 6라운드 완주 → 누적 3.86×** ([[01-hard-loop-poc]] §R4~R7). 챔피언 = flash4d+TF32 0.857ms (naive 3.244 대비). **큰 이득 2개**: 4D flash(2.26×)·TF32(R5, matmul 천장 52.7% 직격 →3.86×). **반증/기각 4개 = 전부 룰 정밀화**: R3 torch.compile 회귀 / R3' Triton 융합 약적중(커널-39%지만 비중 2.5%<5%) / bf16 동률(TF32 이미 텐서코어) / fused_ffn 승격 측정기각(게이트통과≠승격) / R7 elementwise **착수 전 룰 선험 기각**(R6 학습을 다음 라운드에 적용=헛 라운드 절약). **= 룰DB 진화(차별점)의 실물 증거 다수.** ncu 천장 재편 추적: matmul 52.7%→20.3%, flash_attn 28.7%→48.6%(신1위).
+- ✅ **Git-우편함 Runner 로컬측 done (2026-06-24)** ([[03-git-mailbox-runner]]) — 터널 운용 3고통(끊김 로그 노이즈·세션 URL 복붙·배포불가) 진단 → **B+ 결정**: 자동 루프 채널 = git 우편함(비동기 cmd/result JSON), 수동 탐색 = ssh 병존. `mailbox.py` `MailboxProfiler` = glue.Profiler 구현. sync_fn(git pull/push) 주입으로 **GPU·git·네트워크 0 단위테스트** — 왕복/Profiler경로/done멱등/타임아웃 4검증 PASS(커밋 loop `5348fd6`). 핵심: "연결" 부재 → "끊김" 개념 소멸. 즉답손실≈0(폴링 ≤5s vs 라운드 본체 수십초~분). 배포 = repo fork 1개, PAT repo-scope만, Drive 불요. **부수: selfcheck 회귀 수리** — bad_sig가 시드룰 교체 후 stale(weight_pct 누락)로 differentiator_e2e 죽어있던 것 부활(fp32_no_tensorcore 강등0.00→폐기).
 - ⏭️ 다음 — **차별점 입증이 최우선 (그게 프로젝트 존재 이유)**:
-  - **(핵심) 다문제 우수성 입증** — 여러 다른 GPU 커널(다른 백틀넥 분포)로 "추가 축(비중·텐서코어·진화)이 측정 이득"을 객관 GT로 증명. 이게 안 되면 차별점 = "개념 OK, 이득 미입증"에 머묾. GPU 다회 필요(큰 작업).
-  - (보조) glue.py stub→Real → 첫 자동 라운드. evolver propose_candidate 진짜화는 우수성 입증 후.
+  - **(핵심) 다문제 우수성 입증** — 여러 다른 GPU 커널(다른 백틀넥 분포)로 "추가 축(비중·텐서코어·진화)이 측정 이득"을 객관 GT로 증명. 이게 안 되면 차별점 = "개념 OK, 이득 미입증"에 머묾. GPU 다회 필요(큰 작업). **이제 우편함으로 GPU 다회가 비동기·무인 가능 → 전제조건 해소.**
+  - (보조) **watch.py (Colab측)** — git pull 루프 + 컴파일/gate/ncu + result push. 우편함 반대편. GPU 필요(Colab서 작성). → 이게 되면 glue stub 3개(Generator/Gate/Profiler) 중 Profiler 경로 완성.
+  - (보조) glue.py Generator/Gate Real화 → 첫 자동 라운드. evolver propose_candidate 진짜화는 우수성 입증 후.
   - (선택) R8 flash_attn 48.6% 추가 최적화 — 알고리즘 영역, 차별점과 무관한 곁가지.
 
 ## 폐기/역사
