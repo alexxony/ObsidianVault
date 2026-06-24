@@ -120,13 +120,34 @@ Gate도 같은 RES에 실어 옴(passed/max_abs_err) → 별도 왕복 불필요
 - **배포 = repo fork 1개.** 사용자가 빈 우편함 repo 1개 만들고 양쪽에 PAT 꽂으면 끝. 개인 환경 종속 0.
 - 우편함 repo private 권장(생성 커널 코드 노출 방지).
 
-## 미해결 / 다음
+## 완료 / 미해결
 
-- [ ] `watch.py` (Colab측) — git pull 루프 + 컴파일/gate/ncu 실행 + result push. (실제 GPU 필요, Colab서 작성)
-- [ ] `MailboxProfiler` (로컬측) — glue.py에 추가. **GPU 없이 단위테스트 가능** (가짜 우편함 = 로컬 폴더 2개로 push/pull 모킹).
-- [ ] PAT 주입 방식 표준화 (env var `GPU_MAILBOX_TOKEN`).
-- [ ] 타임아웃/재시도 정책 (Colab 죽으면 RES 안 옴 → timeout_s 후 에러 → 라운드 스킵 or 재큐).
-- [ ] git 충돌 회피 — 양쪽이 다른 디렉토리(cmd/ vs result/)만 써서 머지충돌 구조적 없음. 확인 필요.
+**완료** (2026-06-24):
+- [x] `mailbox.py` `MailboxProfiler` (로컬측) — sync_fn 주입, GPU·git·네트워크 0 self-check PASS. 커밋 `5348fd6`.
+- [x] `watch.py` 골격 (Colab측) — 폴링/멱등/실패격리 self-check PASS. `execute_request`만 stub. 커밋 `1889a17`.
+- [x] git 충돌 회피 — cmd/ vs result/ 분리로 구조적 무충돌 (설계 확정).
+
+**미해결**:
+- [ ] `execute_request` Colab 구현 — challenge.py reference_impl gate + ncu 프로파일.
+- [ ] PAT 주입 표준화 (env var `GPU_MAILBOX_TOKEN`, Colab Secrets).
+- [ ] 재시도 정책 (현재 timeout→MailboxTimeout 예외까지만, 재큐 미구현).
+
+## 다음 세션 착수 체크리스트 (우편함 repo 생성 + 첫 자동 라운드)
+
+> 재논의 0으로 바로 시작하도록 순서·재료 박음. 목표 = **배관 실증 1문제** (challenge.py 1개로 자동 라운드 1회 = 우편함 왕복 + ncu 실측이 굴러감 증명). 차별점 실험 아님.
+
+**선결 확인됨**: `gh` 인증 OK(alexxony) · `challenge.py`(reference_impl) + `solve.py`(현 챔피언 flash4d+TF32) 존재 = execute_request 재료 있음.
+
+**순서**:
+1. **우편함 repo 생성** — `gh repo create gpu-mailbox --private`. cmd/ result/ done/ + .gitignore 초기 커밋. 로컬 clone 1개.
+2. **PAT 표준화** — `GPU_MAILBOX_TOKEN` env. 로컬은 gh 토큰 재사용, Colab은 Secrets에 동일 PAT.
+3. **`execute_request` 채움** (Colab) — cmd["code"]→파일 → `challenge.py` reference_impl과 `torch.allclose(atol=1e-3)` gate → 통과 시 `ncu --metrics ... --csv` → `signals.parse_ncu_rows`로 signal_dict + weight_pct(단일커널이면 1.0) → RES 스키마.
+4. **Colab watch 띄움** — `!python watch.py --loop --mailbox /content/gpu-mailbox --poll 5`. (watch가 셀 active 유지 → 유휴 끊김 방지)
+5. **로컬서 첫 라운드** — `MailboxProfiler(mailbox_dir, sync_fn=git_sync_pull)`로 solve.py 코드 1개 submit → RES 수신 검증. **= 첫 자동 라운드.** signal_dict가 ledger에 들어가면 harness/evolver가 그 위에서 굴러감.
+
+**검증점**: RES.signal_dict가 수동 PoC([[01-hard-loop-poc]] §R5) 챔피언 측정(flash4d+TF32, bw_pct·tensorcore_active 등)과 **일치**하면 배관 정확. 불일치 = ncu 파싱/스키마 버그.
+
+**경계**: 이건 **배관 실증**(1문제). 차별점 실험(다문제 GT)은 별개 큰 작업 — 배관 굴러간 뒤 [[GPU-Solver-MOC]] 다음 항목.
 
 ## 의사결정 여정 (이 설계에 도달한 과정)
 
