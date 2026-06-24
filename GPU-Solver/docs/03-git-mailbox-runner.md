@@ -158,9 +158,40 @@ Gate도 같은 RES에 실어 옴(passed/max_abs_err) → 별도 왕복 불필요
 - [ ] PAT 주입 표준화 (env var `GPU_MAILBOX_TOKEN`, Colab Secrets).
 - [ ] 재시도 정책 (현재 timeout→MailboxTimeout 예외까지만, 재큐 미구현).
 
-## 🔖 재개 지점 (2026-06-24 세션 중단 — A 인프라 e2e 검증 직전)
+## ✅ A 인프라 e2e 검증 PASS (2026-06-25)
 
-> **다음 세션 여기서 시작.** A 인프라 코드 전부 완성·push됨. 막힌 건 **Colab watch의 git pull 실패** 1건뿐 — 코드 아님, Colab git 설정 문제.
+> **완료.** 로컬(CPU) ↔ Colab(A100) 완전 자동 왕복 실증. 터널 0, git 우편함만.
+
+**실증 라운드** (REQ `07c415ce`, problem=`solve_llama`, seed=현 챔피언 solve.py 10652자):
+- 로컬 `run_e2e.py` → `run_problem` → REQ push → Colab watch pull → executor(gate+ncu) → RES push → 로컬 pull → ledger 기록 → 룰 발화. **1왕복 완결.**
+- 결과: `rounds=1 stop=stop_label events=1 passed=True max_abs_err=2.87e-4`(<atol).
+- `signal_dict`: `occupancy 0.582 · l2_hit 0.987 · bw_pct 0.0003 · compute_tput 0.631 · tensorcore_active true · weight_pct 1.0 · latency_us 24288`.
+
+**검증점 — 신호가 챔피언 변천을 정확히 반영** (RES-real01과 정반대 = 버그 아님):
+| | RES-real01 (pre-TF32 코드) | e2e (현 챔피언 `9e09b9b` flash4d+TF32) |
+|---|---|---|
+| tensorcore_active | false | **true** |
+| compute_tput | 0.031 | **0.631** |
+| bw_pct | 0.524 | 0.0003 |
+
+real01은 TF32 켜기 전 측정. 현 챔피언은 R5에서 TF32 적용(sgemm→텐서코어) → `tensorcore_active false→true`, `compute_tput` 폭증은 **TF32 효과 그대로**. 코드 바뀌니 신호도 맞게 바뀜 = 측정 파이프 정확성 증거.
+
+**운용 확정 사항**:
+- 브랜치: **mailbox=`main`**, loop=`master` (서로 다름 — sync_fn은 main 사용). `run_e2e.py` `BRANCH="main"`.
+- PAT: **Colab Secrets `GPU_MAILBOX_TOKEN`** (userdata.get, 평문 0). notebook은 `gpu-solver-loop`에 push(`.gitignore` `*.ipynb` 예외 `-f`).
+- prior blocker(git pull 실패) 해소: clone URL에 PAT 임베드 + `git config user.*` 매 실행 재설정. 헬스체크 셀 RC:0 확인.
+- 로컬 e2e 드라이버: `loop/run_e2e.py` (진짜 git sync_fn = add→commit→pull --rebase→push).
+
+**남은 것 (차별점 = 별개 큰 작업)**:
+- [ ] **다문제 GT 실험** — LeetGPU easy/middle 문제로 evolver 룰 진화 관찰(공개 재료). 단일문제는 배관만, 룰 content 진화 안 일어남.
+- [ ] LLM generate (현 FixedGenerator stub) → RealGenerator.
+- [ ] 재시도 정책 (timeout→재큐 미구현).
+
+---
+
+## 🔖 (구) 재개 지점 (2026-06-24 — 위에서 해소됨)
+
+> A 인프라 코드 전부 완성·push됨. 막힌 건 **Colab watch의 git pull 실패** 1건 — 2026-06-25 해소.
 
 ### 지금까지 (전부 push 완료, loop repo `gpu-solver-loop` master)
 - 통신(우편함) ✅ · 측정(ncu `--launch-count 1`, 6배↓) ✅ · A 인프라 코드(`runner.py`) ✅
