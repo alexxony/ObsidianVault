@@ -129,10 +129,27 @@ Gate도 같은 RES에 실어 옴(passed/max_abs_err) → 별도 왕복 불필요
 - [x] **배관 왕복 실환경 실증 PASS** (2026-06-24). 로컬 push `REQ-smoke01` → Colab watch `git pull` → `execute_request`(stub) → `RES-smoke01.json` push → 로컬 pull 확인 = 완전 1왕복. 스키마 계약(`id/passed/signal_dict/latency_us/error`) 정상, `done/smoke01` 멱등 마커 동작, 실패 격리(NotImplementedError → error RES, watch 안 죽음) 확인. **배관 굴러감 증명 완료** — 남은 건 `execute_request` 실구현(진짜 GPU 작업)뿐.
   - 운용 메모: `watch.py`는 repo 루트 아니라 `loop/watch.py`. Colab 셀은 `cd .../loop` + `sys.path`에 `/loop` 추가 필요.
 
+- [x] **`execute_request` 실구현 + 진짜 라운드 실증 PASS** (2026-06-24). `executor.py` 신설:
+  cmd["code"](전체 solve.py) → `_load_solve_module` → `_run_gate`(solve.py `_reference`
+  교차검증, seq=[1,4,128,2048], atol 1e-3) → gate PASS 시 `_profile_ncu`(NCU_METRIC_MAP
+  메트릭 → `signals.parse_ncu_rows`), ncu 부재 시 `_profile_event` fallback. `watch.py`는
+  executor 위임(lazy import). 커밋 `d2d9644`.
+  - **실측 RES-real01** (Colab A100, ncu 권한 OK): `passed=true`, `max_abs_err=2.87e-4`(<atol),
+    `signal_dict={bw_pct:0.524, compute_tput:0.031, occupancy:0.409, tensorcore_active:false,
+    latency_us:10368}`, `weight_pct=1.0`. **gate·ncu·스키마 전부 정상** = 측정 파이프 완성.
+  - ⚠️ **검증점 주의 — latency 단위**: ncu `gpu__time_duration.sum`=10.4ms(커널합, replay 직렬화)
+    ≠ 수동 PoC Event e2e=0.84ms([[01-hard-loop-poc]] R5). **버그 아님, 측정법 차이.** 룰/게이트는
+    비율 신호(bw_pct·tensorcore_active)로 판단하지 절대 latency 아님 → 파이프 유효. e2e 비교
+    필요 시 executor에 Event 측정 추가(미구현, 현 PoC 불요).
+  - ⚠️ **운용 병목 — ncu 12분/라운드**: ncu가 전 커널×메트릭8 replay = 라운드당 ~12분. 자동
+    루프 N회 = N×12분. 최적화 후보: 메트릭 수 축소 or **nsys 전환**(replay 없음, [[01-hard-loop-poc]]
+    s1-165 기본 권장). 현 PoC(배관 실증)는 무시 가능, 다문제 루프 전 해결 필요.
+
 **미해결**:
-- [ ] `execute_request` Colab 구현 — challenge.py reference_impl gate + ncu 프로파일.
 - [ ] PAT 주입 표준화 (env var `GPU_MAILBOX_TOKEN`, Colab Secrets).
 - [ ] 재시도 정책 (현재 timeout→MailboxTimeout 예외까지만, 재큐 미구현).
+- [ ] ncu 12분/라운드 병목 → nsys 전환 or 메트릭 축소 (다문제 자동 루프 전).
+- [ ] `mailbox.MailboxProfiler` 로컬측 ↔ ledger/harness/evolver 연결 (signal_dict → 자동 루프 본체).
 
 ## 다음 세션 착수 체크리스트 (우편함 repo 생성 + 첫 자동 라운드)
 
