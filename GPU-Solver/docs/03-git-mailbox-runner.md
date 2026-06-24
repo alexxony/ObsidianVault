@@ -158,6 +158,77 @@ Gate도 같은 RES에 실어 옴(passed/max_abs_err) → 별도 왕복 불필요
 - [ ] PAT 주입 표준화 (env var `GPU_MAILBOX_TOKEN`, Colab Secrets).
 - [ ] 재시도 정책 (현재 timeout→MailboxTimeout 예외까지만, 재큐 미구현).
 
+## 🔖 다음 세션 착수 (clear 후 여기부터 — 2026-06-25)
+
+> **현황: 다문제 어댑터 동작, llama+sigmoid 2문제 e2e PASS. 다음 = groupnorm 어댑터, 그담 차별점(룰 진화) 실험.**
+
+### 코드 위치 (전부 push됨)
+- 로컬: `/home/kimsh/workspace/gpu_solver_test/` (= GitHub `alexxony/gpu-solver-loop` master, 최신 `9127f3a`)
+  - `loop/` = 인프라 (executor/watch/runner/mailbox/signals/rules/evolver/ledger). **문제 무관.**
+  - `problems/llama/solve.py` (챔피언, flash4d+TF32) · `problems/sigmoid/solve.py` (PASS) · `problems/groupnorm/{challenge.py, starter.triton.py}` (미착수)
+  - `loop/run_e2e.py` = 로컬 e2e 드라이버. `python3 run_e2e.py {llama|sigmoid|groupnorm}`
+- 우편함: `/home/kimsh/workspace/gpu-mailbox` (= `alexxony/gpu-mailbox`, **브랜치 main**). loop은 master — 주의.
+- 로컬 python = `python3` (3.10, torch 없음 — gate/ncu는 Colab서만).
+
+### Colab 운용 (재시작 빈도)
+- **watch 한 번 띄우면 계속 사용.** 문제만 추가(solve.py를 REQ로)하면 재clone·재시작 **불요**.
+- loop 코드(executor 등) **바꿀 때만**: 셀2 재clone + **런타임 재시작**(sys.modules 캐시) + watch 재기동.
+- Colab 셀 순서: 셀1(nvidia-smi)→셀2(clone, PAT=Secrets `GPU_MAILBOX_TOKEN`)→watch셀. watch는 max_iters=120(~10분), 끝나면 재실행.
+
+### 다음 작업 = groupnorm 어댑터 (sigmoid 패턴 복제)
+1. `problems/groupnorm/starter.triton.py` + `challenge.py`(name="Group Normalization") → `solve.py` 작성.
+   - sigmoid solve.py가 템플릿. 어댑터 5개(make_case/run_solve/reference/GATE_SIZES/PROFILE_SIZE) + `--profile`.
+   - groupnorm = reduction 있음 (sigmoid보다 복잡, 채널 그룹별 mean/var). reference = challenge.reference_impl 참고.
+2. push (gpu_solver_test → master). **push 후 `git rev-parse HEAD origin/master` 일치 확인** (이번에 divergent 조용한 실패 겪음).
+3. loop 코드 안 바꾸면 Colab 재시작 불요 → watch 살아있으면 `python3 run_e2e.py groupnorm` 바로.
+4. 검증: passed=True + signal_dict가 groupnorm 특성 반영 (reduction = 또 다른 프로필).
+
+### 그 다음 = 차별점(룰 진화) 실험 = 프로젝트 핵심
+- 3문제(llama 컴퓨트바운드 / sigmoid·groupnorm 메모리바운드) 다른 신호 = evolver 룰 진화 관찰 환경.
+- 단일문제는 룰 정체(confidence ±1만). **다문제라야 룰 content 진화** = CUDAMaster에 없는 차별점([[2026-06-22-agentic-gpu-optimizer-design]]).
+- evolver.py/rules.py = 인프라 이미 있음. 다문제 라운드 돌려 룰 진화 로그 = 공개 재료.
+
+---
+
+## ✅ 다문제 어댑터 + sigmoid e2e PASS (2026-06-25) ← 최신
+
+> **executor 추상화 완료. 2문제(llama+sigmoid) 서로 다른 신호 프로필 확보 = 차별점 실험 토대.**
+
+### 한 일
+1. **executor 문제-범용 추상화** (커밋 `9127f3a`). 기존 executor는 llama 전용 시그니처
+   (`solve(x,out,w,cos,sin,T)`+`mod.D`+`GATE_SEQ_LENS`) 하드코딩 → **통일 어댑터 계약**으로:
+   - 각 `solve.py`가 노출: `make_case(size,device)→case` / `run_solve(case,device)→Tensor` /
+     `reference(case,device)→Tensor` / `GATE_SIZES` / `PROFILE_SIZE` / (옵션)`GATE_ATOL`,`GATE_RTOL`.
+   - executor `_run_gate`/`_profile_event`는 이 계약만 호출 → 문제 모양 모름.
+2. **llama solve.py**: 어댑터 함수 추가 (기존 `_make_case`/`solve`/`_reference` 무파괴 래핑).
+3. **sigmoid solve.py 신규** (`problems/sigmoid/solve.py`): triton sigmoid 커널 + 어댑터,
+   self-contained gate (atol 1e-5, reference=torch.sigmoid).
+4. **run_e2e.py**: `problem` CLI 인자화 → `python3 run_e2e.py {llama|sigmoid|groupnorm}`.
+5. **problems/ 폴더 정리**: `problems/<이름>/{challenge.py,solve.py}`. loop/=인프라(문제무관).
+
+### e2e 결과 (Colab A100, 신 executor)
+| | llama (RES-5b866) | sigmoid (RES-2d366) |
+|---|---|---|
+| passed | true | true (max_err 1.79e-7 < atol 1e-5) |
+| bw_pct | 0.0003 | **0.668** |
+| compute_tput | 0.628 | 0.696 |
+| tensorcore_active | **true** | **false** |
+| 특성 | 컴퓨트바운드 | **메모리바운드** |
+
+**핵심: 2문제가 정반대 신호 프로필.** 측정 파이프가 문제 특성 구별 = evolver가 서로 다른
+룰 발화할 환경 확보. **차별점(룰 진화) 실험의 실제 재료 = 이제 준비됨.**
+
+### 이번 세션 디버깅 교훈 (재발 방지)
+- ⚠️ **git push divergent 조용한 실패**: 첫 executor push가 non-fast-forward로 reject됐는데
+  출력이 "pushed"처럼 보여 놓침. → push 후 `git rev-parse HEAD origin/master` 일치 확인 필수.
+  원인 = run_e2e.py를 별도 임시클론서 push해 remote가 앞서감 → `git pull --rebase` 후 재push.
+- ⚠️ **Colab `sys.modules` 캐시**: executor.py 갱신 후 재clone·watch재실행해도 구버전 계속 실행
+  (`import executor` 메모리 캐시). → **런타임 재시작(Runtime→Restart) 필수**, 그담 셀 순서 재실행.
+- ✅ **평상시는 재시작 불요**: loop 코드(executor/signals/rules) 안 바꾸고 **문제만 추가**하면
+  watch 한 번 띄워 계속 사용. 재clone·재시작 0. (이번엔 인프라 변경 세션이라 재시작 필요했음.)
+
+---
+
 ## ✅ A 인프라 e2e 검증 PASS (2026-06-25)
 
 > **완료.** 로컬(CPU) ↔ Colab(A100) 완전 자동 왕복 실증. 터널 0, git 우편함만.
