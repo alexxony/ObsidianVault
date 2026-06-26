@@ -27,7 +27,8 @@ tags: [gpu-solver, moc, index, portfolio]
 | [[00-measurement-feasibility]] | Task 0 측정 검증 (판정 A) | 🟢 done |
 | [[01-hard-loop-poc]] | Hard 최적화 루프 PoC (R0→R2' + §R4~R7 새 스택: flash 4D·TF32로 누적 3.86×, 반증/기각 다수=룰 진화) | 🟢 done |
 | [[02-prior-art-survey]] | 사전 탐사 — 선행연구 4종 비교, 차별점 검증 | 🟢 done |
-| [[03-git-mailbox-runner]] | Git-우편함 Runner 설계 (터널 제거, cmd/result 비동기) + 의사결정 여정 | 🔵 설계 done / 양쪽 골격 done |
+| [[03-git-mailbox-runner]] | Git-우편함 Runner 설계 (터널 제거, cmd/result 비동기) + 의사결정 여정 | 🟢 e2e PASS / 3문제 신호 확보 |
+| [[04-multiproblem-round-design]] | 다문제 라운드 설계 (A 발화관찰→B 진화이득) — 차별점 실험 | 🔵 A 구현 done / 실행 대기 |
 | `~/workspace/gpu_solver_test/loop/` | 자동 루프 골격 (코드, 별도 git repo) | 🟢 골격 done / 글루 stub |
 | [[HANDOFF-SPEC]] | 옛 Hermes 사양 | ⚫ deprecated |
 
