@@ -128,6 +128,40 @@ CUDAMaster류(정적 룰)는 영원히 이 오발화 유지. **우리 evolver는
 - B = gain layer. A 결함 고침이 **정적 대비 측정 이득**이어야 차별점 입증.
 - RealGenerator(LLM) = 비용 큼. 1차 공개 전 에이전트 수행(user 승인).
 
+## B 옵션1 결과 (2026-06-26 실행) — 메커니즘 실증 ★
+
+LLM·GPU 0, fake responder(sigmoid 실측 신호 고정 주입)로 진화 ON/OFF 비교.
+`loop/run_evolution_compare.py`. fp32_no_tensorcore 오발화가 측정 피드백으로
+폐기되는지 = 차별점 메커니즘 검증.
+
+| | OFF (정적, CUDAMaster류) | ON (진화) |
+|---|---|---|
+| 발화 변천 | fp32×4 → converged 종료 | fp32×4 → **retire** → memory_bound_fusable×2 |
+| fp32 룰 | 영원히 발화 (폐기 불가) | demote×3 → **RETIRE** |
+| 이벤트 | 없음 | promote, demote×3, retire, demote×2 |
+
+**핵심: ON/OFF 갈림.** OFF는 오발화 영원 반복. ON은 측정 fail 피드백으로 fp32
+폐기 → 올바른 메모리룰 전환. = CUDAMaster류 정적 룰에 없는 메타루프 실동작.
+
+### 발견·수정 3결함 (전부 진짜 버그)
+1. **retire 경계** `conf < 0.25` → `<=` (demote 3회 정확히 0.25서 한 끗 미달).
+2. **converged 조기종료** — retire/propose 시 `no_improve` 리셋 (폐기 후 발화 변경
+   관찰 가능하도록). harness.
+3. **가짜 OFF** — `rules=None`은 정적 아니라 1객체가 진화함. `evolve_enabled`
+   플래그 신설 → 진짜 정적 baseline (evolve 스킵). harness/runner.
+
+self-check 5개(harness/evolver/runner/rules/ledger) 전부 PASS = 기존 계약 무파괴.
+
+### ⚠️ 경계 (과대주장 금지)
+- 이건 **mechanism layer** — demote/retire/전환이 실측 fail로 돈다.
+- **gain layer 아님** — memory_bound_fusable도 fake 신호선 fail(success=0). 진짜
+  개선(improved 변동)은 RealGenerator가 코드 변형해야 생김 = B 본체.
+- **fake responder** — 신호 고정(값만 A 실측 sigmoid). 실 GPU 측정 아님.
+
+### 다음 = B 본체 (RealGenerator)
+- LLM이 가설 프롬프트 받아 solve.py 변형 → 진짜 improved 변동 → 정적 대비 수렴
+  속도/헛라운드 수 = gain layer. 3문제 GT 필수. 비용 큼.
+
 ## 경계 (정직화)
 - A = **concept layer** (신호→다른 룰). 단단하나 이득 아님.
 - B = **gain layer** (진화가 정적보다 나음). 미입증, 큰 작업.
