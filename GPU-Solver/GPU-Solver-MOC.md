@@ -10,6 +10,8 @@ tags: [gpu-solver, moc, index, portfolio]
 > 🧭 이 프로젝트 문서 허브. 모든 노트의 진입점 + 그래프 중심.
 > **한 줄 정의**: GPU 커널 최적화 루프. 분류→재작성 골격은 선행(CUDAMaster)이 풀었고 — 내 기여는 **룰표가 측정 피드백으로 진화한다는 것** (포트폴리오 / AX 메인). 근거: [[2026-06-22-agentic-gpu-optimizer-design]] §1.
 
+> 🔖 **재개는 [[PROGRESS]] 먼저** — 최신 상태 + 다음 할 일 + 재개 절차 1장.
+
 ## 읽는 순서 (신규 진입자용)
 
 1. [[agentic-gpu-solver-concept]] — 컨셉 메모 (브레인스토밍 출발점)
