@@ -199,13 +199,39 @@ self-check 5개(harness/evolver/runner/rules/ledger) 전부 PASS = 기존 계약
 - 이건 **mechanism 실데이터 1점** (대행+GPU 닫힘 + improved 실변동). gain layer 아님.
 - gain(정적 대비 측정 이득)은 **3문제 × N라운드** 필요 — 1라운드는 demote 1회뿐.
 
-## 🔖 다음 세션 착수 (gain layer 본격)
-- **3문제 × 5~6라운드 대행 루프** = gain layer 입증. sigmoid·groupnorm(메모리) + llama(컴퓨트).
-  각 라운드 = 에이전트가 발화 가설 보고 변형 대행 → ncu → evolve. 진화 ON vs OFF 비교.
-  → 헛라운드 수·수렴 속도가 정적보다 나으면 = **차별점 gain 입증.**
-- ⚠️ 18라운드 = 대행 18왕복 + ncu 18회 = 시간 큼. 집중 세션 권장.
-- 코드 전부 준비됨: `run_gain_round.py`(1스텝) → 다라운드 드라이버로 확장 필요.
+## ✅ gain 신호 첫 실증 (2026-06-27, 진짜 A100)
+
+`run_gain_compare.py` — 같은 variant 큐를 진화 **ON/OFF 두 트랙**에 주입(공정 비교).
+sigmoid 8라운드 설정, flat variants(seed 동일 코드 = 측정 노이즈만, "나쁜 코드 조작" 0).
+
+| | OFF (정적, CUDAMaster류) | ON (룰 진화) |
+|---|---|---|
+| 발화 룰 | `fp32_no_tensorcore` ×6 **영원** | fp32 ×4 → **retire** → `memory_bound_fusable` ×3 |
+| retire | 0 | **1** |
+| 수렴 | converged(6R) | converged(7R) |
+
+**메타루프 실작동 (진짜 GPU 데이터):**
+1. sigmoid(메모리바운드)에 틀린 컴퓨트 룰 `fp32_no_tensorcore` 발화.
+2. R1~R4 실측 → 텐서코어 가설로 개선 안 됨 → fail 누적 (fail≥3 & conf≤0.25).
+3. ON: **fp32 룰 retire** → 다음 우선순위 맞는 룰 `memory_bound_fusable`(메모리 융합)로 자동 전환.
+4. OFF: 똑같이 실패해도 fp32 영원 발화 = 정적 룰표의 한계.
+
+= **"틀린 정적 룰이 측정으로 폐기되고 맞는 룰로 갈아탐"** — 차별점 메커니즘이 실 A100서 닫힘.
+
+### ⚠️ 경계 (여전히 정직)
+- 이건 **gain 신호**(틀린 룰 폐기 = 진화가 정적과 다른 결정) 실증. **성능 gain 아님.**
+- metric 곡선은 ON/OFF 거의 동일(~0.67) — 같은 코드 큐라 당연. "진화하면 커널 더 빠름"은
+  **여전히 미입증** (LLM이 진짜 코드 변형해야 = RealGenerator/API 단계).
+- 즉 입증된 것 = **"진화가 틀린 룰을 측정으로 버린다"**. 미입증 = **"그 결과 최종 성능↑"**.
+- 1문제(sigmoid)만 — 다문제 일반화도 남음.
+
+## 🔖 다음 세션 착수 (성능 gain layer)
+- **남은 급소 = "진화→더 빠른 커널" 실증.** flat variant(코드 불변) 말고 **진짜 코드 변형** 필요
+  → RealGenerator(API) 또는 대행으로 실제 더 나은 solve.py 생성 → 곡선 우상향 + ON 우위.
+- 다문제 일반화: groupnorm(메모리)·llama(컴퓨트)도 같은 ON/OFF 비교.
+- 코드 준비됨: `run_gain_compare.py <problem> <variants_dir> <max_rounds>` (ON/OFF 자동 비교).
 - watch 무한(max_iters=None) — 한 번 띄우면 계속. 재시작 불요.
+- ⚠️ mailbox done/ 마커는 확장자 없음 — 청소 시 `done/*` 전부 (json 패턴만으론 안 지워짐).
 - 제품 무인화 = RealGenerator + ANTHROPIC_API_KEY(user 발급 시).
 
 ## 경계 (정직화)
