@@ -162,6 +162,52 @@ self-check 5개(harness/evolver/runner/rules/ledger) 전부 PASS = 기존 계약
 - LLM이 가설 프롬프트 받아 solve.py 변형 → 진짜 improved 변동 → 정적 대비 수렴
   속도/헛라운드 수 = gain layer. 3문제 GT 필수. 비용 큼.
 
+## B 본체 진행 (2026-06-26) — RealGenerator + 대행 GPU 닫힘 ★
+
+### 결정: API vs 대행
+- generate(LLM)=API 호출=GPU 불요 → 로컬 실행, 우편함 프로토콜 무변(code 필드).
+- **API 키 결정**: user = Claude 구독만, ANTHROPIC_API_KEY 없음(별도 과금 지갑).
+  → 제품 아키텍처 = RealGenerator(API 무인), PoC 입증 = CallbackGenerator(대행, 키 0).
+- A100 풀활용하려면 로컬 LLM(Qwen) 필요하나 설정 큼 → **대행으로 gain 먼저** 선택.
+  (A100 저활용 감수 — 작은 커널 PoC라 A100 원래 거의 안 씀. 본질은 룰 진화.)
+
+### 구현 (커밋 936f39a, 9a1ca39, 9ef32a0)
+- `generator.py`: **RealGenerator**(Claude API, call_fn 주입) + **CallbackGenerator**(대행).
+  둘 다 glue.Generator 계약. 시스템 프롬프트가 어댑터 5심볼·reference 보존 강제.
+- `runner.run_problem(generator=None)`: None이면 FixedGenerator(기존 무파괴), 주입 시 변형 라운드.
+- `run_gain_round.py`: 대행 1스텝 드라이버 (R0원본→R1변형).
+- `git_sync` push 5회 재시도 — watch와 로컬 동시 push 레이스(non-fast-forward) 수정.
+
+### gain 1스텝 실측 (sigmoid, 진짜 A100) ★
+대행(에이전트)이 발화 룰 `fp32_no_tensorcore` 가설 보고 TF32 변형 → Colab gate+ncu:
+
+| | R0 (원본) | R1 (TF32 변형) |
+|---|---|---|
+| bw_pct | 0.6705 | 0.6704 |
+| compute_tput | 0.6964 | 0.6958 |
+| improved | True | **False** |
+
+진화 이벤트 `[promote, demote]`, fp32 룰 success=1 fail=1.
+
+**핵심 입증 (mechanism, 진짜 GPU)**:
+1. 대행+GPU 닫힘 작동 — LLM 자리에 에이전트 대행, 코드변형 라운드 완결.
+2. **가설 헛방 실측** — TF32 켜도 bw 0.6705→0.6704(거의 동일). sigmoid엔 matmul 없어
+   TF32 무효 = **추측 아니라 A100 측정**이 확인. (이전 evolver 실험은 fake 신호였음.)
+3. evolve가 진짜 GPU improved=False로 demote — 메커니즘이 실측 데이터로 작동.
+
+### ⚠️ 경계 (과대주장 금지)
+- 이건 **mechanism 실데이터 1점** (대행+GPU 닫힘 + improved 실변동). gain layer 아님.
+- gain(정적 대비 측정 이득)은 **3문제 × N라운드** 필요 — 1라운드는 demote 1회뿐.
+
+## 🔖 다음 세션 착수 (gain layer 본격)
+- **3문제 × 5~6라운드 대행 루프** = gain layer 입증. sigmoid·groupnorm(메모리) + llama(컴퓨트).
+  각 라운드 = 에이전트가 발화 가설 보고 변형 대행 → ncu → evolve. 진화 ON vs OFF 비교.
+  → 헛라운드 수·수렴 속도가 정적보다 나으면 = **차별점 gain 입증.**
+- ⚠️ 18라운드 = 대행 18왕복 + ncu 18회 = 시간 큼. 집중 세션 권장.
+- 코드 전부 준비됨: `run_gain_round.py`(1스텝) → 다라운드 드라이버로 확장 필요.
+- watch 무한(max_iters=None) — 한 번 띄우면 계속. 재시작 불요.
+- 제품 무인화 = RealGenerator + ANTHROPIC_API_KEY(user 발급 시).
+
 ## 경계 (정직화)
 - A = **concept layer** (신호→다른 룰). 단단하나 이득 아님.
 - B = **gain layer** (진화가 정적보다 나음). 미입증, 큰 작업.
