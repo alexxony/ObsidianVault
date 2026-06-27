@@ -241,13 +241,59 @@ sigmoid BLOCK 변형 variant(256~8192) 12R 실측:
 - 룰 진화 신호(retire 1, fp32→memory_bound_fusable 전환)는 **재현**되나 더 빠른 커널로 안 이어짐.
 - 결론: **루프 결함 아니라 문제 선택 문제.** 여지 없는 워크로드선 진화해도 성능 gain 불가.
 
-## 🔖 다음 세션 착수 (성능 gain — 여지 큰 문제)
-- **groupnorm**(reduction = 병렬/공유메모리 여지) 또는 **llama**(matmul = TF32/타일링 여지)로 재시도.
-  ⚠️ BLOCK 1줄 치환 아니라 **진짜 다른 커널**(알고리즘 변형) 작성 필요 — 대행, cherry-pick 안 되게 발화 가설 충실히.
-  ⚠️ llama = multi-kernel ncu 10~12분/R = 느림. groupnorm 먼저 권장.
-- 실행: `python3 run_gain_compare.py groupnorm <variants_dir> 6 --latency` (ON/OFF + 성능 gain 자동 판정).
-- watch 무한(max_iters=None) — 재시작 불요.
+## ❌ 성능 gain 2차 시도 (2026-06-28, groupnorm + llama) — 3문제 전부 null 확정
+
+여지 큰 문제(groupnorm reduction, llama matmul)로 재시도 → **둘 다 null. 원인 = 측정 환경.**
+
+### groupnorm — 3알고리즘 전부 동일 latency (DRAM BW 천장)
+baseline 진단: `fp32_no_tensorcore` **오발화**(matmul 없는데), 진짜 신호 = `load_eff=0.0`(uncoalesced).
+PROFILE_SIZE=(16,128,64,64,32)=536MB fp32. **진짜 다른 알고리즘 커널 3종** 작성·실측:
+
+| variant | 알고리즘 | latency | 비고 |
+|---|---|---|---|
+| baseline | 단일블록 2-pass (X 3로드) | 36288 us | occ 0.51 |
+| R_coalesced(welford) | 1-pass 통계 (X 2로드) | 36032 us | 로드 줄여도 무변 |
+| R_coalesced(분할병렬) | 3커널 atomic, grid 512→4096 (8배) | 35872 us | occ 0.51 불변 |
+
+**전부 ±1% = 노이즈.** 알고리즘·grid·BLOCK 무관 latency ~36ms 고정.
+= **이 크기 fp32는 DRAM BW 천장.** reduction이어도 여지 없음 (큰 텐서 read+write 1회 = 불가피).
+- 분할병렬 버그 교훈: `mask = idx<group_elems`만이면 BLOCK>tile 시 타일 중복 합산.
+  **`mask = (idx<group_elems) & (idx<tile_end)`** 필수. NTILE=1 PASS·NTILE=8 FAIL로 격리.
+
+### llama — TF32 효과 무효 (환경이 PoC와 다름)
+seed=TF32 OFF("highest") vs variant=TF32 ON("high"), Event latency 실측:
+
+| | TF32 OFF | TF32 ON | speedup |
+|---|---|---|---|
+| latency | 24320 us | 24352 us | **1.00×** |
+| max_err | 2.4e-7 | 2.9e-4 | (TF32 실적용 확인) |
+
+**성능 gain ❌.** TF32는 실제 적용됨(err 변동)이나 latency 무효.
+- **원인 = 측정 환경 ≠ PoC.** llama 24ms = PoC([[01-hard-loop-poc]] R5) **1.4ms의 17배.**
+  현 환경선 matmul 비병목 (SDPA flash 지배 추정, ncu 비중 미확인). PoC R5(1.71×)는 다른 환경.
+
+### 종합 결론 — 성능 gain 추격 중단
+| 문제 | 특성 | 결과 |
+|---|---|---|
+| sigmoid | elementwise | null (메모리바운드, 1차) |
+| groupnorm | reduction | null (DRAM BW 천장, 3알고리즘) |
+| llama | matmul | null (TF32 무효, 환경≠PoC) |
+
+= **루프 결함 아님. 이 측정 환경(git-mailbox Colab)서 어떤 문제도 최적화 여지 안 보임.**
+차별점 = **메커니즘(룰진화·오발화 retire)으로 확정.** 성능 gain = future work.
+
+### 성능 gain 인프라 (환경 갖춰지면 재사용)
+- `run_gain_hypcond.py` — **가설-조건부 콜백 드라이버**. 콜백이 발화 룰 라벨 보고 코드 선택
+  → 진화 차이가 코드 차이로 이어져 성능 gain 갈림 측정 가능 (run_gain_compare 큐 한계 극복).
+- variants: `groupnorm/variants/R_tf32.py`·`R_coalesced.py`, `llama/variants/R_seed_tf32off.py`·`R_tf32on.py`.
+
+## 🔖 다음 세션 착수 (재개 시 선택)
+성능 gain 추격 중단 (환경 한계 확정). 재개 선택지 — [[PROGRESS]] §다음 할 일:
+1. **(포트폴리오 마무리)** 차별점=메커니즘 입증 완료로 서술. 성능 gain은 인프라 준비됨으로 정직 표기.
+2. **(원인 확정)** llama ncu 비중 1R(~10분) — matmul %가 작으면 TF32 무효=SDPA flash 지배 확정.
+3. **(환경 복원, 비권장)** PoC 1.4ms 환경(SSH+do_bench) — 현 24ms와 17배 차 원인. git-mailbox 안정성↑이라 권장 안 함.
 - ⚠️ mailbox 청소 = `cmd/* result/* done/*` 전부 (done 마커는 확장자 없음).
+- ⚠️ ncu=True인데 llama 24ms = Event fallback 동작 추정 (executor가 ncu None→Event). 확인 필요.
 - 제품 무인화 = RealGenerator + ANTHROPIC_API_KEY(user 발급 시).
 
 ## 경계 (정직화)
