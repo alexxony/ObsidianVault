@@ -30,7 +30,7 @@ tags: [gpu-solver, moc, index, portfolio]
 | [[01-hard-loop-poc]] | Hard 최적화 루프 PoC (R0→R2' + §R4~R7 새 스택: flash 4D·TF32로 누적 3.86×, 반증/기각 다수=룰 진화) | 🟢 done |
 | [[02-prior-art-survey]] | 사전 탐사 — 선행연구 4종 비교, 차별점 검증 | 🟢 done |
 | [[03-git-mailbox-runner]] | Git-우편함 Runner 설계 (터널 제거, cmd/result 비동기) + 의사결정 여정 | 🟢 e2e PASS / 3문제 신호 확보 |
-| [[04-multiproblem-round-design]] | 다문제 라운드 (A 발화관찰→B 진화) — 차별점 실험 | 🟢 A PASS + gain 신호 실증(진화 ON=틀린룰 retire→전환) / 성능 gain은 sigmoid null(여지 큰 문제 필요) |
+| [[04-multiproblem-round-design]] | 다문제 라운드 (A 발화관찰→B 진화) — 차별점 실험 | 🟢 메커니즘 확정(진화 ON=틀린룰 retire→전환, 실 A100) / 성능 gain 3문제 전부 null=환경 한계, 추격 중단 |
 | `~/workspace/gpu_solver_test/loop/` | 자동 루프 골격 (코드, 별도 git repo) | 🟢 골격 done / 글루 stub |
 | [[HANDOFF-SPEC]] | 옛 Hermes 사양 | ⚫ deprecated |
 
@@ -53,10 +53,9 @@ tags: [gpu-solver, moc, index, portfolio]
 - ✅ **수동 루프 6라운드 완주 → 누적 3.86×** ([[01-hard-loop-poc]] §R4~R7). 챔피언 = flash4d+TF32 0.857ms (naive 3.244 대비). **큰 이득 2개**: 4D flash(2.26×)·TF32(R5, matmul 천장 52.7% 직격 →3.86×). **반증/기각 4개 = 전부 룰 정밀화**: R3 torch.compile 회귀 / R3' Triton 융합 약적중(커널-39%지만 비중 2.5%<5%) / bf16 동률(TF32 이미 텐서코어) / fused_ffn 승격 측정기각(게이트통과≠승격) / R7 elementwise **착수 전 룰 선험 기각**(R6 학습을 다음 라운드에 적용=헛 라운드 절약). **= 룰DB 진화(차별점)의 실물 증거 다수.** ncu 천장 재편 추적: matmul 52.7%→20.3%, flash_attn 28.7%→48.6%(신1위).
 - ✅ **Git-우편함 Runner 양쪽 골격 done (2026-06-24)** ([[03-git-mailbox-runner]]) — 터널 운용 3고통(끊김 로그 노이즈·세션 URL 복붙·배포불가) 진단 → **B+ 결정**: 자동 루프 채널 = git 우편함(비동기 cmd/result JSON), 수동 탐색 = ssh 병존. **로컬측** `mailbox.py` `MailboxProfiler`(glue.Profiler 구현, 커밋 loop `5348fd6`). **Colab측** `watch.py` 골격(폴링/멱등/실패격리, 커밋 `1889a17`) — `execute_request`만 stub(GPU 컴파일/gate/ncu, Colab서 채움). 양쪽 다 sync_fn/execute 주입으로 **GPU·git·네트워크 0 self-check PASS**. 핵심: "연결" 부재 → "끊김" 개념 소멸. 즉답손실≈0. 배포 = repo fork 1개, PAT repo-scope만, Drive 불요. **부수: selfcheck 회귀 수리**(bad_sig stale → differentiator_e2e 부활). **의미: 이 인프라가 "다문제 GPU 다회"를 비동기·무인으로 현실화 = 차별점 실험의 전제조건 해소.** 단 인프라 ≠ 실험 — 오늘 GPU 실측 0회.
 - ✅ **gain 신호 실증 (2026-06-27)** ([[04-multiproblem-round-design]]) — `run_gain_compare.py`로 진화 ON/OFF 두 트랙 공정 비교(같은 variant 큐). 진짜 A100 sigmoid 14R: **ON=틀린 fp32_no_tensorcore 룰 4실패후 retire→memory_bound_fusable 자동 전환, OFF=fp32 ×6 영원 오발화.** = "틀린 정적 룰이 측정으로 폐기되고 맞는 룰로 갈아탐" 차별점 메커니즘이 실 GPU로 닫힘. 인프라 부수: 노트북 Colab Secrets 인증 전환(평문 PAT 제거).
-- 🧪 **성능 gain 1차 시도 → null (2026-06-27)** — harness latency mode(`--latency`, metric=-latency_us) 추가. sigmoid 12R: **성능 gain 없음** (ON best 769952us > OFF 765184us). 원인 = 메모리바운드라 BLOCK 변형해도 latency ±1% 노이즈 = 최적화 여지 없음. **루프 결함 아니라 문제 선택 문제** (룰 진화는 재현되나 더 빠른 커널로 안 이어짐).
-- ⏭️ 다음 — **성능 gain은 여지 큰 문제로**:
-  - **(핵심) groupnorm/llama + 진짜 다른 알고리즘 커널** — sigmoid(메모리바운드)는 여지 없어 부적합. reduction(groupnorm)·matmul(llama)은 알고리즘 선택이 latency 좌우. variant = BLOCK 1줄 치환 아니라 진짜 다른 커널(대행, cherry-pick 안 되게 발화 가설 충실). `run_gain_compare.py groupnorm <dir> 6 --latency`. groupnorm 먼저(ncu 빠름), llama는 multi-kernel 10~12분/R.
-  - (보조) 성능 gain 입증되면 RealGenerator(API)로 무인화 — 대행을 LLM으로 드롭인 교체.
+- ❌ **성능 gain 3문제 전부 null → 추격 중단 (2026-06-28)** — 환경 한계로 확정 ([[PROGRESS]] 미입증 표). sigmoid(메모리바운드 ±1%), groupnorm(단일·welford·**분할병렬 3알고리즘** 전부 ~36ms ±1%, DRAM BW 천장), llama(**TF32 OFF=24320us vs ON=24352us, 1.00×** — TF32 실적용됐으나 err 2e-7→2.9e-4만 변동, latency 무효). **원인 = 측정 환경(git-mailbox Colab) ≠ PoC**: llama 24ms = PoC 1.4ms의 **17배** → 현 환경선 matmul 비병목(SDPA flash 지배 추정). **루프 결함 아님 — 어떤 문제도 이 환경서 최적화 여지 안 보임.** 인프라 부수: `run_gain_hypcond.py`(가설-조건부 콜백, 큐 한계 극복), groupnorm/llama variants 커밋(`1424053`). 분할병렬 버그 교훈: mask에 `idx<tile_end` 필수.
+- ✅ **차별점 확정 = 메커니즘 (2026-06-28)** — 룰표가 측정 피드백으로 진화(오발화 retire→정룰 전환)는 진짜 A100으로 닫힘. 성능 gain(진화→더 빠른 커널)은 **환경 한계로 future work**. 포트폴리오 서술 = "측정 피드백 진화 메타루프" 메커니즘 입증 + 성능 gain은 인프라 준비됨(환경 갖춰지면 측정 가능).
+- ⏭️ 다음 (재개 시 선택) — [[PROGRESS]] §다음 할 일: (1) 포트폴리오 마무리(메커니즘 확정 서술), (2) llama ncu 비중 1R로 TF32 무효 원인 확정, (3) PoC 1.4ms 환경 복원(비권장).
   - (선택) R8 flash_attn 48.6% 추가 최적화 — 알고리즘 곁가지, 차별점 무관.
 
 ## 폐기/역사
