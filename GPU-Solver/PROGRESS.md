@@ -79,21 +79,31 @@ fp32(9.6ms)→fp32_no_tensorcore 발화→TF32(1.5ms) **6.4× 실측** = "측정
 - llama variants: `R_seed_tf32off.py`(느림 base), `R_tf32on.py`(빠름)... 단 환경서 동률.
 - baseline 신호 진단: `scratchpad/profile_baseline.py`, headroom: `scratchpad/check_llama_headroom.py`.
 
-## 🔖 다음 할 일 (성능 gain 추격 중단 — 환경 한계 확정)
+## 📋 2026-06-29 세션 작업 기록 (gain 돌파 + 두 축 정리)
 
-성능 gain은 3문제 연속 null + 원인이 측정 환경(≠PoC)으로 확정 → **추격 중단, 정직 기록.**
-차별점 = **메커니즘(룰진화·오발화retire·측정 닫힘)** 으로 확정. 성능 gain = future work.
+큰 반전 세션. "환경 한계 null" → **측정 버그 발견 → gain layer 첫 돌파 → 두 축 동시 구조적 불가까지 정직 규명.**
 
-**재개 시 선택지 (우선순위):**
-1. **(포트폴리오 마무리)** 차별점 = "측정 피드백으로 진화하는 룰표" — 메커니즘 입증 완료로
-   서술. 성능 gain은 "환경 갖춰지면 인프라 그대로 측정 가능"(run_gain_hypcond.py)으로 정직히 표기.
-2. **(원인 확정 원하면)** llama ncu 비중 분석 1R (~10분) — matmul %가 작으면 TF32 무효 = SDPA flash
-   지배 확정. `run_gain_round.py llama <variant>` 또는 직접 ncu 요청.
-3. **(환경 재현 원하면)** PoC 1.4ms 환경(SSH Colab+do_bench) 복원 시도 — 현 24ms와 17배 차 원인.
-   단 git-mailbox 안정성↑이라 권장 안 함.
+**한 일 (순서대로):**
+1. **포트폴리오 차별점 노트 작성** — [[05-portfolio-differentiator]] (한) + EN + 깃헙 README + `docs/SETUP.md`. 방법론 톤(가설→ablation→측정검증), 청중별 포지셔닝.
+2. **llama ncu 비중** — `executor.ncu_breakdown` 신규. attention(flash) 54% > matmul 23% → matmul 비병목 확정.
+3. **compute-bound matmul 추가**(`problems/matmul/`) — TF32 OFF/ON parity. 처음 95ms 동률="환경 한계" 오결론.
+4. **🐛 측정 버그 발견·수정** — `_profile_ncu --launch-count 1`이 커널 1개만 측정. 전체 duration 합산으로 고침(커밋 `62235bb`). 재측정 **OFF 9.4ms(sgemm) vs ON 1.5ms(tensorop) = 6.4× 실재.** 커널명·FLOP 검산 확인.
+5. **✅ gain layer 첫 돌파** — matmul 진화 라운드: 루프가 R0(fp32 9.6ms)→`fp32_no_tensorcore` 발화→R1(TF32 1.5ms). "측정→가설→재작성→더 빠른 커널" 첫 실증. 단 진화 ON≈OFF(첫 룰이 맞아 retire 불요).
+6. **두 축 동시 시도→구조적 불가 확정** — 비합착 Triton matmul(`problems/matmul_tri/`) probe: tc=True(tl.dot TF32 자동)+load_eff=0.0 → 또 첫 발화가 맞는 룰. 시드 룰이 잘 맞아 retire 안 생김(역설). future work.
+
+**산출 코드:** `executor.ncu_breakdown`+`_profile_ncu` 수정, `problems/{matmul,matmul_tri}/`, `run_gain_hypcond` matmul 분기.
+
+## 🔖 다음 할 일
+
+차별점 = **메커니즘 OK + gain 축(matmul 6.4×) 단일문제 + 진화 축(sigmoid retire) 단일문제 = 각각 실증.** 동시·일반화 future work.
+
+**재개 시 선택지:**
+1. **(포트폴리오 마무리·권장)** 현 차별점 서술 충분 — 노트 한/영·README 다 gain 반영됨. public 전환 원하면 가능(민감정보 스캔 clean 확인됨).
+2. **(다문제 gain 일반화)** matmul 외 다른 compute-bound 문제서도 6.4×류 gain 일관 확인. = gain 축 일반화.
+3. **(두 축 동시 재설계)** rule-fire 시점에 진짜 모호한 문제 클래스 찾기 — 메모리바운드/compute 경계 워크로드. 구조적 난제(상호배타) 우회 필요.
 - ⚠️ mailbox 청소 = `cmd/* result/* done/*` 전부 (done 마커 확장자 없음).
-- harness latency mode = `--latency` 플래그 (metric=-latency_us, best=최저). occupancy 기본 보존.
-- ⚠️ ncu=True인데 llama 24ms = Event fallback 동작 추정 (ncu 권한? executor가 None→Event). 확인 필요.
+- harness latency mode = `--latency` 플래그. `_profile_ncu`는 이제 전체 커널 duration 합산(launch-count 무제한).
+- watch 살아있음(2026-06-29 세션 말). 문제만 추가는 재시작 불요, executor/loop 코드 바꾸면 재시작 필수.
 
 ## 🛠️ 재개 절차
 

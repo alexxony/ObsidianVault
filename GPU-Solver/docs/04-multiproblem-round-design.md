@@ -287,11 +287,29 @@ seed=TF32 OFF("highest") vs variant=TF32 ON("high"), Event latency 실측:
   → 진화 차이가 코드 차이로 이어져 성능 gain 갈림 측정 가능 (run_gain_compare 큐 한계 극복).
 - variants: `groupnorm/variants/R_tf32.py`·`R_coalesced.py`, `llama/variants/R_seed_tf32off.py`·`R_tf32on.py`.
 
+## ✅ 성능 gain 3차 — matmul 6.4× 첫 돌파 + 측정 버그 정정 (2026-06-29)
+
+**2차 "3문제 전부 null = 환경 한계" 결론이 측정 버그로 판명 → 반전.**
+
+- **llama ncu 비중** (`executor.ncu_breakdown` 신규): attention(flash) 54% > matmul 23%, flash 단일 48% 지배.
+  → llama TF32 무효는 "환경 한계" 아니라 **matmul 비병목**(attention 지배)이라서. 데이터 확정.
+- **순수 matmul**(`problems/matmul/`, 4096² fp32) TF32 OFF/ON: 처음 `_profile_ncu` latency 95ms **동률**="환경 TF32 못 냄" 오결론.
+- **🐛 측정 버그 정정** — `_profile_ncu --launch-count 1`이 **커널 1개만** 측정(matmul 아닌 엉뚱한 커널). 전체 duration 합산으로 고침
+  (커밋 `62235bb`). 재측정: **OFF=`ampere_sgemm` 9.4ms vs ON=`cutlass_tensorop` 1.5ms = 6.4× 실재.** 커널명·FLOP 검산 확인.
+- **✅ 진화 gain 라운드** (`run_gain_hypcond matmul`): 루프가 R0(fp32 9.6ms)→`fp32_no_tensorcore` 발화→R1(TF32 1.5ms).
+  = **"측정→가설→재작성→더 빠른 커널" 첫 실증 (gain layer 돌파).** R1 후 `tensorcore_saturated`→stop = 정상 종료 판정.
+  단 진화 ON≈OFF (matmul 첫 발화가 맞는 룰 → retire 불요).
+- **두 축 동시 시도→구조적 불가** — 비합착 Triton matmul(`problems/matmul_tri/`) probe: **tc=True**(tl.dot TF32 자동)+load_eff=0.0
+  → 또 첫 발화가 맞는 룰(uncoalesced). 시드 룰이 워크로드에 잘 맞아 retire 안 생김(역설). 틀린룰 자연발화=메모리바운드(gain 천장)
+  vs 맞는룰=compute(retire 없음) = **상호배타.** 연출 없이 한 문제서 둘 다 = 불가 확정.
+
+**= 차별점 두 축 각각 단일문제 실증: gain=matmul 6.4×, 진화 retire=sigmoid. 동시·일반화 future work.**
+
 ## 🔖 다음 세션 착수 (재개 시 선택)
-성능 gain 추격 중단 (환경 한계 확정). 재개 선택지 — [[PROGRESS]] §다음 할 일:
-1. **(포트폴리오 마무리)** 차별점=메커니즘 입증 완료로 서술. 성능 gain은 인프라 준비됨으로 정직 표기.
-2. **(원인 확정)** llama ncu 비중 1R(~10분) — matmul %가 작으면 TF32 무효=SDPA flash 지배 확정.
-3. **(환경 복원, 비권장)** PoC 1.4ms 환경(SSH+do_bench) — 현 24ms와 17배 차 원인. git-mailbox 안정성↑이라 권장 안 함.
+차별점 두 축 각각 입증 완료. 재개 선택지 — [[PROGRESS]] §다음 할 일:
+1. **(포트폴리오 마무리·권장)** 노트 한/영·README 다 gain 반영됨. public 전환 가능(민감정보 clean).
+2. **(다문제 gain 일반화)** matmul 외 compute-bound 문제서도 gain 일관 확인 = gain 축 일반화.
+3. **(두 축 동시 재설계)** rule-fire 시점 진짜 모호한 워크로드 찾기 — 상호배타 우회 필요.
 - ⚠️ mailbox 청소 = `cmd/* result/* done/*` 전부 (done 마커는 확장자 없음).
 - ⚠️ ncu=True인데 llama 24ms = Event fallback 동작 추정 (executor가 ncu None→Event). 확인 필요.
 - 제품 무인화 = RealGenerator + ANTHROPIC_API_KEY(user 발급 시).
