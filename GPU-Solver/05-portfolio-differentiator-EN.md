@@ -65,6 +65,11 @@ real ceilings (memory-bound); llama is attention-dominated — **not a loop defe
 - ❌ **Multi-problem generalization.** gain=matmul (1 problem), evolution=sigmoid (1 problem).
 - ⚠️ **Two axes, separated:** loop improves (gain, matmul ✅) + evolution beats static (sigmoid ✅) =
   each a single-problem demonstration. Both-on-one-problem + multi-problem generalization = future work.
+  - **Both-on-one confirmed structurally hard (by measurement).** Tried a deliberately uncoalesced Triton
+    matmul to get "wrong rule fires → retire → right rule → gain," but the seed rules fit so well that the
+    first fired rule is always correct → no retire. **Wrong-rule-fires-naturally = memory-bound (gain
+    ceiling) vs right-rule = compute (no retire) = mutually exclusive.** Both on one problem without staging
+    = not possible. The limit itself was established by measurement.
 
 > **Cross this boundary and you get downgraded.** Do not say "a system that auto-optimizes GPU kernels."
 > It collapses under a speedup question. Keep claims confined to the **mechanism / methodology layer.**
