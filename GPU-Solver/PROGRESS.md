@@ -60,7 +60,13 @@ fp32(9.6ms)→fp32_no_tensorcore 발화→TF32(1.5ms) **6.4× 실측** = "측정
   - ➡️ **함의: gain 입증 길 열림.** matmul은 TF32로 진짜 7.2× 빨라짐 → 진화 ON(fp32룰 retire→TF32 켬)이 더 빠른 커널 만드는 것
     측정 가능. 단 sigmoid/groupnorm=메모리바운드 진짜 null, llama=attention 지배(matmul 23%)라 TF32 무효 = 별개 사유 유효.
     **다음 = executor latency를 ncu_breakdown 방식(전체 duration)으로 고치고 진화 ON/OFF gain 라운드.**
-- **다문제 일반화** — gain 신호(오발화retire)는 sigmoid 1문제만.
+- **두 축 동시 (한 문제서 retire + gain)** — future work, **구조적 난제로 확인 (2026-06-29).** 시도:
+  비합착 Triton matmul(`problems/matmul_tri/`)로 "fp32룰 헛발화→retire→uncoalesced→합착 fix→gain" 노렸으나,
+  probe 측정 결과 **tc=True**(Triton `tl.dot`이 TF32 텐서코어 자동) → `fp32_no_tensorcore`(cond=`not tc`) **발화 막힘.**
+  대신 `uncoalesced`(load_eff=0.0) 1순위 자연 발화 = **또 첫 발화가 맞는 룰 → retire 불요.** 근본 원인 = **시드 룰이
+  워크로드에 잘 맞아 retire가 안 생김** (역설). 틀린 룰 자연 발화 = 메모리바운드(gain 천장), 맞는 룰 = compute(retire 없음)
+  = **상호배타.** 연출 없이 한 문제서 둘 다 = 불가 확정. 부수 수확: uncoalesced 룰 비합착 Triton서 정상 발화 입증.
+- **다문제 일반화** — gain=matmul 1문제, 진화 retire=sigmoid 1문제. 한 문제서 동시·여러 문제 일관은 미입증.
 - 차별점 현 상태 = **"개념·메커니즘·룰진화 이득 OK, 최종 성능 gain은 환경 한계로 future work"** (정직 유지).
 
 ## 🧪 성능 gain 인프라 (재시도용 — 환경 갖춰지면)
