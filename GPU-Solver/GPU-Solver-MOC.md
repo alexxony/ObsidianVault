@@ -32,6 +32,7 @@ tags: [gpu-solver, moc, index, portfolio]
 | [[03-git-mailbox-runner]] | Git-우편함 Runner 설계 (터널 제거, cmd/result 비동기) + 의사결정 여정 | 🟢 e2e PASS / 3문제 신호 확보 |
 | [[04-multiproblem-round-design]] | 다문제 라운드 (A 발화관찰→B 진화) — 차별점 실험 | 🟢 메커니즘 확정(진화 ON=틀린룰 retire→전환, 실 A100) / 성능 gain 3문제 전부 null=환경 한계, 추격 중단 |
 | [[05-portfolio-differentiator]] | **포트폴리오 차별점 서술** (방법론 톤, 청중별 포지셔닝) | 🟢 active |
+| [[05-portfolio-differentiator-EN]] | 위 노트 영문판 (깃헙 README·해외 채용용) | 🟢 active |
 | `~/workspace/gpu_solver_test/loop/` | 자동 루프 골격 (코드, 별도 git repo) | 🟢 골격 done / 글루 stub |
 | [[HANDOFF-SPEC]] | 옛 Hermes 사양 | ⚫ deprecated |
 

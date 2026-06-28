@@ -1,0 +1,101 @@
+---
+title: GPU-Solver — Portfolio Differentiator (EN)
+created: 2026-06-28
+tags: [gpu-solver, portfolio, differentiator, english]
+status: active
+---
+
+# GPU-Solver — What I Proved, and What I Didn't
+
+> 🎯 Single portfolio narrative for an AX / agentic-systems audience.
+> Tone: not *"I built impressive infrastructure"* but *"I form a hypothesis, isolate the mechanism
+> with a controlled experiment, and when it doesn't work I prove it with measurement."*
+> Korean original: [[05-portfolio-differentiator]]. Hub: [[GPU-Solver-MOC]].
+
+## One line
+
+I built a loop where an LLM agent **evolves its own classification rules from profiling
+measurements**, and proved that evolution mechanism with a **controlled ON/OFF experiment**.
+The performance gain was **measured to be null** and attributed to an environment limit —
+stated honestly as future work.
+
+## What I proved (claimable)
+
+### 1. Measurement-feedback rule-evolution meta-loop — mechanism proven (✅)
+
+Prior art (CUDAMaster, arXiv 2603.07169) already implements the "deterministic rule label →
+LLM rewrite → measure-verify" pipeline. **My contribution = the classification rule table itself
+evolves from measurement feedback.** All 6 surveyed prior systems use static rules.
+
+**Evidence (real A100, sigmoid, 14 rounds, `run_gain_compare.py`):**
+- Evolution **ON** = a wrong `fp32_no_tensorcore` rule fired 4 times, failed, was retired →
+  auto-switched to `memory_bound_fusable`.
+- Evolution **OFF** = the same fp32 rule misfired 6 times forever (fake signal).
+- = "a wrong static rule gets retired by measurement and replaced by the right one" — closed on real GPU.
+
+### 2. Self-validation via ablation (✅ — the core selling point)
+
+The ON/OFF above is not a demo. It is an **ablation that isolates which component (evolution)
+produces the effect.** The same variant queue was fed fairly to both tracks, so the difference
+is controlled to the single variable of evolution presence/absence.
+
+### 3. Negative result confirmed by measurement (✅ — integrity)
+
+The performance gain ("evolution → faster kernel") is **null across all 3 problems.** Nailed with data:
+
+| Problem | Attempt | Result |
+|---|---|---|
+| sigmoid | `--latency` 12R, BLOCK variants | null — memory-bound ~770ms ±1% |
+| groupnorm | single-block · Welford 1-pass · split-parallel (3 algorithms) | null — ~36ms ±1%, DRAM BW ceiling |
+| llama | TF32 OFF vs ON | null — OFF=24320us, ON=24352us (1.00×) |
+
+Cause = **measurement environment (git-mailbox Colab) ≠ PoC.** llama 24ms = 17× the PoC's 1.4ms →
+matmul is not the bottleneck in this environment (SDPA flash dominates, presumed).
+**Not a loop defect = environment/problem selection limit.**
+
+## What I did NOT prove (never claim)
+
+- ❌ **Performance gain.** "Evolution produces a faster kernel" = 0 cases. The table above is the evidence.
+- ❌ **Multi-problem generalization.** The ON/OFF difference was observed on sigmoid only (1 problem).
+  No general superiority claim is permitted.
+- ⚠️ **Mechanism ≠ gain.** *loop closes* (mechanism proven) ≠ *loop improves* (gain measured).
+  The latter is unmet.
+
+> **Cross this boundary and you get downgraded.** Do not say "a system that auto-optimizes GPU kernels."
+> It collapses under a speedup question. Keep claims confined to the **mechanism / methodology layer.**
+
+## Audience positioning
+
+**AX / agentic systems (primary audience):**
+> "An agentic system with an LLM in a measurement-feedback loop. The core = the agent's
+> classification rules self-evolve from profiling results. I proved the mechanism with an ablation,
+> and I quantified the limit of the performance gain by measurement."
+
+**Compiler / perf experts (secondary, defensive):**
+> Concede the absence of performance numbers first. Present "null in this environment, cause is the
+> measurement environment" as data. = Trust through measurement integrity, not exaggeration.
+> Do not enter the speedup competition.
+
+## Why this holds up even though I'm a beginner
+
+The differentiator is not lines of code or harness sophistication — it's **methodology**:
+1. Form a hypothesis (if the rule table evolves, there's a gain).
+2. Isolate the mechanism with a controlled experiment (ON/OFF ablation).
+3. When it fails, prove it fails with measurement (3 problems null, cause attributed).
+4. Separate claims by layer (mechanism vs gain, single-problem vs generalization).
+
+= A senior-researcher way of thinking. The harness (git-mailbox, ncu pipeline) is a tool that
+supports this thinking — not the thing to show off.
+
+## Reproducibility (when the environment is ready)
+
+The gain-measurement infrastructure is ready — retry as-is once the environment is PoC-grade (1.4ms):
+- `loop/run_gain_hypcond.py` = hypothesis-conditional callback driver (selects code by fired rule label).
+- Full retry procedure = [[PROGRESS]] §performance-gain infrastructure.
+
+## Links
+
+- [[GPU-Solver-MOC]] — document hub
+- [[04-multiproblem-round-design]] — A/B experiment detail (mechanism evidence)
+- [[02-prior-art-survey]] — prior-art comparison, differentiator check
+- [[PROGRESS]] — resume entry point
