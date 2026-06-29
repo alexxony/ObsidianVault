@@ -33,6 +33,7 @@ tags: [gpu-solver, moc, index, portfolio]
 | [[04-multiproblem-round-design]] | 다문제 라운드 (A 발화관찰→B 진화) — 차별점 실험 | 🟢 메커니즘 확정(진화 ON=틀린룰 retire→전환, 실 A100) / 성능 gain 3문제 전부 null=환경 한계, 추격 중단 |
 | [[05-portfolio-differentiator]] | **포트폴리오 차별점 서술** (방법론 톤, 청중별 포지셔닝) | 🟢 active |
 | [[05-portfolio-differentiator-EN]] | 위 노트 영문판 (깃헙 README·해외 채용용) | 🟢 active |
+| [[06-cudaforge-comparison-design]] | CudaForge 성능 비교 실험 설계 (판정 주체만 통제변수, H1성능/H2품질 분리) | 🔵 design |
 | `~/workspace/gpu_solver_test/loop/` | 자동 루프 골격 (코드, 별도 git repo) | 🟢 골격 done / 글루 stub |
 | [[HANDOFF-SPEC]] | 옛 Hermes 사양 | ⚫ deprecated |
 
@@ -60,7 +61,8 @@ tags: [gpu-solver, moc, index, portfolio]
 - ✅ **gain layer 첫 돌파 (2026-06-29)** — "환경 한계"는 측정 버그였음(`_profile_ncu --launch-count 1` = 커널 1개만 측정). 고침(전체 duration 합산) 후 matmul 재측정: **TF32 7.2× 실재**(OFF `ampere_sgemm` 9.4ms vs ON `cutlass_tensorop` 1.5ms). 진화 라운드: 루프가 R0(fp32 9.6ms)→`fp32_no_tensorcore` 발화→R1(TF32 1.5ms) = **6.4× gain 실측 = "측정→가설→재작성→더 빠른 커널" 첫 실증.** 단 진화 ON>OFF 차이는 없음(첫 발화가 맞는 룰→retire 불요). **차별점 두 축 분리 확정: gain 축=matmul 6.4×, 진화 축=sigmoid 오발화 retire. 일반화는 future work.** 부수: `executor.ncu_breakdown`·`_profile_ncu` 수정·`problems/matmul/`.
 - ⏭️ **두 축 동시(한 문제서 retire+gain) = 구조적 future work (2026-06-29)** — 비합착 Triton matmul(`problems/matmul_tri/`)로 시도했으나 `tl.dot`이 TF32 텐서코어 자동(tc=True) → fp32룰 발화 막힘, uncoalesced 1순위 자연 발화 = 또 첫 발화가 맞는 룰. 근본 = **시드 룰이 워크로드에 잘 맞아 retire 안 생김**(역설). 틀린 룰 자연 발화=메모리바운드(gain 천장) vs 맞는 룰=compute(retire 없음) = 상호배타. 연출 없이 한 문제서 둘 다 불가 확정. = 차별점 두 축은 각각 단일문제 입증으로 확정, 동시·일반화는 정직히 future work.
 - ✅ **포트폴리오 차별점 노트 작성 (2026-06-28)** — [[05-portfolio-differentiator]]. 방법론 톤(가설→ablation→측정 검증→claim 레이어 분리)으로 청중별 포지셔닝 확정. 핵심: 어필 축 = 하네스 정교함 아니라 **통제 실험 설계 + negative result 정직 측정.** 메커니즘/이득 레이어 경계를 넘지 않는 서술 = 초보여도 격하 방어.
-- ⏭️ 다음 (재개 시 선택) — [[PROGRESS]] §다음 할 일: (1) 포트폴리오 마무리(메커니즘 확정 서술), (2) llama ncu 비중 1R로 TF32 무효 원인 확정, (3) PoC 1.4ms 환경 복원(비권장).
+- ✅ **다신호 확장 + CudaForge 비교 설계 (2026-06-29)** — signals.py에 nsys(`launch_gap_pct`)·torch profiler(`op_name/op_weight/op_shape`) 파서 추가(기존 ncu 보존, 3소스 합성). rules.py에 새 룰 2개(`launch_overhead`=nsys, `attention_dominant`=torch) — 워크로드 가드 포함. self-check 전부 PASS. **왜 여태 ncu만? = 룰 신호가 전부 커널 내부 메트릭이라 nsys 자리 안 만듦(spec-구현 드리프트, 정정).** [[06-cudaforge-comparison-design]] 작성 — 판정 주체(우리 룰 vs CudaForge Judge LLM)만 통제변수, H1(성능, 불확실)/H2(품질·결정론·재현, 차별점 본질) 분리. ⚠️ executor 측정 배선·judge arm 미구현(설계만).
+- ⏭️ 다음 (재개 시 선택) — [[PROGRESS]] §다음 할 일: (1) 06 실험 실행(executor에 nsys/torch 측정 배선→Colab 재시작 1회 + judge arm 재구현), (2) 포트폴리오 마무리, (3) 다문제 gain 일반화.
   - (선택) R8 flash_attn 48.6% 추가 최적화 — 알고리즘 곁가지, 차별점 무관.
 
 ## 폐기/역사
