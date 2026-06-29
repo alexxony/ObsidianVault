@@ -34,6 +34,7 @@ tags: [gpu-solver, moc, index, portfolio]
 | [[05-portfolio-differentiator]] | **포트폴리오 차별점 서술** (방법론 톤, 청중별 포지셔닝) | 🟢 active |
 | [[05-portfolio-differentiator-EN]] | 위 노트 영문판 (깃헙 README·해외 채용용) | 🟢 active |
 | [[06-cudaforge-comparison-design]] | CudaForge 성능 비교 실험 설계 (판정 주체만 통제변수, H1성능/H2품질 분리) | 🔵 design |
+| [[07-chip-lang-context-design]] | 칩×문법 컨텍스트 설계 — 환경을 룰 1급 입력으로 (칩=1급/문법=신호흡수, 사용자는 무대만·룰은 측정진화) | 🔵 design (미구현) |
 | `~/workspace/gpu_solver_test/loop/` | 자동 루프 골격 (코드, 별도 git repo) | 🟢 골격 done / 글루 stub |
 | [[HANDOFF-SPEC]] | 옛 Hermes 사양 | ⚫ deprecated |
 

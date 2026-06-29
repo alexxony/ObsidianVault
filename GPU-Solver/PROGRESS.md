@@ -98,6 +98,7 @@ fp32(9.6ms)→fp32_no_tensorcore 발화→TF32(1.5ms) **6.4× 실측** = "측정
 차별점 = **메커니즘 OK + gain 축(matmul 6.4×) 단일문제 + 진화 축(sigmoid retire) 단일문제 = 각각 실증.** 동시·일반화 future work.
 
 **재개 시 선택지:**
+0. **(칩 이식성 — 신규 설계됨 2026-06-30)** [[07-chip-lang-context-design]]. 칩·문법이 룰 cond에 1급 변수 아님(rationale 주석에만 A100·Triton) = matmul_tri/llama 난항 일부 원인. 설계 확정: **칩=1급**(nvidia-smi 자동탐지 + CHIP_CAPS 박힌 사실, 룰 cond에 `ctx` 가드), **문법=신호 흡수**(Mojo 환경 0이라 1급 안 만듦). 황금규칙=**사용자/LLM은 Context(무대)만 설정, 최적 룰은 측정→진화가 발견**(룰 손수정 금지=차별점 보존). 작업: signals에 Context+CHIP_CAPS, match(sig,ctx,rules), A100 회귀없음 self-check, Colab T4 1칸 실측. **효과=진화가 미지 칩 일반화=차별점 격상.**
 1. **(CudaForge 비교 실험 — 신규 설계됨)** [[06-cudaforge-comparison-design]]. 판정 주체(우리 룰 vs Judge LLM)만 통제변수. **실행 전 2개 미완**: (a) executor에 nsys/torch 측정 배선(→Colab 재시작 1회), (b) judge_mode arm 재구현(CudaForge Coder+Judge, 논문 프롬프트 verbatim). 그다음 A/B/C 문제셋×arm 매트릭스. **H1성능 불확실/H2품질 차별점 본질 — 어느 결과든 차별점은 성능과 독립.**
 2. **(포트폴리오 마무리)** 현 차별점 서술 충분 — 노트 한/영·README 다 gain 반영됨. public 전환 가능(민감정보 스캔 clean).
 3. **(다문제 gain 일반화)** matmul 외 compute-bound 문제서도 6.4×류 gain 일관 확인.
