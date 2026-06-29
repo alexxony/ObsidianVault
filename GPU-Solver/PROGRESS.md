@@ -135,6 +135,7 @@ fp32(9.6ms)→fp32_no_tensorcore 발화→TF32(1.5ms) **6.4× 실측** = "측정
 ## 비용/환경 메모
 - generate(LLM) = API 호출 = GPU 불요 → 로컬. 제품 무인 = RealGenerator + `ANTHROPIC_API_KEY`(user 미발급).
 - PoC 입증 = CallbackGenerator(대행, 키 0). user = Claude 구독만(API 지갑 별도).
+- **제공자 교체 경로 (call_fn 어댑터 1개만 교체, loop 코드 불변): 지금=Claude Code 세션 대행(키 0) → 차후=GLM-4.6/DeepSeek API(OpenAI 호환, 저렴) → 최후=로컬 LLM(vLLM/Ollama, 키 0·전기만). user 방향 = claude 탈피·최종 로컬 온리. 약한 LLM이어도 룰 진화 ablation 유효(가설 가이드 효과 오히려 큼). ⚠️ 로컬 시 generate↔measure GPU 경합 = 별도 GPU 또는 시분할.**
 - A100 저활용 = 작은 커널 PoC 본질 (낭비 아님). 풀활용 원하면 로컬 LLM(Qwen) — 설정 큼, 보류.
 
 ## 링크
