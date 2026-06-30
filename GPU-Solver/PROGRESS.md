@@ -135,7 +135,7 @@ fp32(9.6ms)→fp32_no_tensorcore 발화→TF32(1.5ms) **6.4× 실측** = "측정
    - ⬜ **미완 = 칩 자동탐지** (지금 `--chip` 수동 명시, 입증엔 충분). watch가 `get_device_capability`로 RES에 싣는 배선 = 무인화 시. + patience 튜닝해 T4 retire 관찰(선택).
 1. **(CudaForge 비교 실험 — 신규 설계됨)** [[06-cudaforge-comparison-design]]. 판정 주체(우리 룰 vs Judge LLM)만 통제변수. **실행 전 2개 미완**: (a) executor에 nsys/torch 측정 배선(→Colab 재시작 1회), (b) judge_mode arm 재구현(CudaForge Coder+Judge, 논문 프롬프트 verbatim). 그다음 A/B/C 문제셋×arm 매트릭스. **H1성능 불확실/H2품질 차별점 본질 — 어느 결과든 차별점은 성능과 독립.**
 2. **(포트폴리오 마무리)** 현 차별점 서술 충분 — 노트 한/영·README 다 gain 반영됨. public 전환 가능(민감정보 스캔 clean).
-   - ⬜ **시각화** [[08-visualization-ideas]] — 아이디어만 기재됨(제작 미정). 후보 5개(진화retire·gain막대·칩가드분기·루프흐름·신호프로필) + 도구 비교(Mermaid/PNG/HTML). 권장 = 루프흐름·칩가드 Mermaid 먼저(vault+README 양쪽, 의존성 0). 도구·범위 사용자 판단 대기.
+   - ✅/⬜ **시각화** [[08-visualization-ideas]] 후보 5개 + 도구 비교. **Mermaid 2장 완료** [[09-architecture-diagrams]] (루프 메타루프 + 칩 가드, mmdc 렌더 검증 PASS, **README 영문판 임베드 push 완료**). ⬜ **남음 = 수치 차트**(① gain막대 6.4× ② retire 곡선 ON1/OFF0) = PNG(matplotlib 로컬 없음) or HTML+JS 결정 후 제작. 사용자 판단 대기.
 3. **(다문제 gain 일반화)** matmul 외 compute-bound 문제서도 6.4×류 gain 일관 확인.
 
 **(2026-06-29 후속) 다신호 확장 완료** — signals.py에 nsys(`launch_gap_pct`)·torch(`op_name/op_weight/op_shape`) 파서, rules.py에 `launch_overhead`·`attention_dominant` 룰 추가(가드 포함, self-check PASS). **왜 여태 ncu만?** = 룰 신호가 전부 커널 내부 메트릭이라 nsys 자리 안 만든 spec-구현 드리프트(정정). **단 파서·룰만 = executor 측정 미배선** → 새 룰 실발화는 executor가 nsys/torch 측정해 Signal 채워야(재시작 1회).
