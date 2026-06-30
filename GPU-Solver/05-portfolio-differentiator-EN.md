@@ -57,6 +57,30 @@ real ceilings (memory-bound); llama is attention-dominated — **not a loop defe
 > durations revealed the 6.4×. Cross-checked by ncu kernel names (sgemm vs tensorop) and theoretical
 > FLOP. = a bug caught and corrected by measurement.
 
+### 4. Environment (chip) as a first-class rule input — chip guard (✅ 2026-06-30, real T4)
+
+The optimal prescription for the *same signal* depends on the chip. fp32 matmul "slow" → A100: enable TF32;
+T4: no TF32. This dependency goes into the rule `cond` as a first-class guard (`chip_cap`) — but the rule
+**content is not authored by a human; measurement→evolution discovers it** (the golden rule).
+
+| Chip | fp32 matmul signal → fired rule | Result |
+|---|---|---|
+| A100 (sm_80) | `fp32_no_tensorcore` fires | TF32 → 6.4× gain |
+| **T4 (sm_75)** | guard (`chip_cap="tf32"`) **blocks** → `reg_pressure` | bogus TF32 hypothesis blocked upfront |
+
+**Changing only the Context (chip) flips the fired rule — no rule edited.** Demonstrates "the user sets only
+the stage (environment); the optimal rule is discovered by measurement." CHIP_CAPS (NVIDIA public spec) filters
+the bogus hypothesis. Prior art (CUDAMaster/CudaForge) is fixed to CUDA + a specific GPU → **chip portability
+is a genuine open slot.**
+
+**Dual defense:** chip guard = block *known* bogus hypotheses upfront (declarative) + evolution retire =
+discard *unknown* bogus hypotheses post-hoc (by measurement).
+
+> ⚠️ **Honesty:** T4 `reg_pressure` matches its cond (`occ<0.5 & reg>64`) but is bogus — compute is saturated
+> (96.7%), so it cannot help. Evolution should retire it, but `CONVERGE_PATIENCE=3`==`RETIRE_AFTER_FAILS=3`
+> makes convergence fire before retire → T4 retire unobserved (retire itself proven on sigmoid). Claim only the
+> 1 measured chip (T4); N-chip generalization is unproven.
+
 ## What I did NOT prove (never claim)
 
 - ❌ **Evolution superiority ON>OFF.** On matmul the first fired rule is correct → no retire needed → ON≈OFF.
