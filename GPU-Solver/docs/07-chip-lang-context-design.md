@@ -211,11 +211,13 @@ compute_tput 96.7% = cuBLAS sgemm 포화. reg_pressure 가설("스레드↓로 o
 — occ 올려도 연산 포화라 latency 불변(48.4ms 평평 확인). 진짜 천장 = **T4 fp32 코어 throughput**
 (텐서코어 없이 알고리즘 여지 0). = applicability(루프 돎)✓, gain(천장)=null = 정직한 결과.
 
-**부가 발견 2 — retire 미관찰, 구조적 원인:**
-8라운드 시도했으나 **5라운드서 converged 조기종료** (retire 0). 원인 = `CONVERGE_PATIENCE=3`
-== `RETIRE_AFTER_FAILS=3` → 수렴정지가 retire보다 먼저/동시 발동. reg_pressure fail 3 도달
-직전 라운드에 converged. **patience>fail 튜닝하면 retire 관찰 가능하나 infra 변경=재시작.**
-→ retire 축은 sigmoid(A100)서 이미 입증됨 = T4 재입증 불요. **T4 목표(칩 가드)는 달성.**
+**부가 발견 2 — retire 관찰 완료 (2026-06-30 후속, 첫 시도는 미관찰):**
+첫 시도 = 8R 중 5R converged 조기종료 (retire 0). 원인 = `CONVERGE_PATIENCE=3` == `RETIRE_AFTER_FAILS=3`
+→ 수렴정지가 retire와 동시/먼저 발동, reg_pressure fail 3 도달 직전 converged.
+**픽스 = `CONVERGE_PATIENCE 3→6`** (retire 조건 `fail>=3 & conf<=0.25 & n>=4` 채울 4R+ 확보).
+재측정 T4 8R: **ON retire=1 > OFF retire=0.** reg_pressure 헛가설 8R 발화, ON 트랙만 측정 누적해 폐기.
+= **칩 가드(사전차단)+진화 retire(사후폐기)를 T4 한 환경서 동시 실측.** sigmoid(A100) retire와 별개 2번째 입증.
+부수 인프라 = `watch.py raw_script` 분기(REQ에 임의 파이썬 실어 보냄=executor 우회) → 새 측정 추가 시 Colab 재시작 영원 불요.
 
 **이중 방어 그림 (차별점 격상):**
 - **칩 가드** = 알려진 헛가설(TF32 on non-TF32 chip) **사전 차단** (선언적, CHIP_CAPS).
