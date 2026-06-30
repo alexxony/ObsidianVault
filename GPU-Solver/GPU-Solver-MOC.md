@@ -36,6 +36,7 @@ tags: [gpu-solver, moc, index, portfolio]
 | [[06-cudaforge-comparison-design]] | CudaForge 성능 비교 실험 설계 (판정 주체만 통제변수, H1성능/H2품질 분리) | 🔵 design |
 | [[07-chip-lang-context-design]] | 칩×문법 컨텍스트 설계+구현 — 환경을 룰 1급 입력으로 (칩=1급/문법=신호흡수, 사용자는 무대만·룰은 측정진화) | 🟢 칩 가드 + ctx 배선 + T4 실측 (A100=TF32발화 vs T4=차단) + retire 관찰 |
 | [[08-visualization-ideas]] | 포트폴리오 시각화 아이디어 — 진화retire·gain막대·칩가드분기·루프흐름·신호프로필 후보 + 도구 비교 | 🟡 ideas (제작 미정) |
+| [[09-architecture-diagrams]] | 아키텍처 Mermaid 2장 — ①루프 메타루프(진화 되먹임) ②칩 가드 분기(A100 TF32 vs T4 차단) | 🟢 렌더 검증 PASS (mmdc), GitHub README 재사용 |
 | `~/workspace/gpu_solver_test/loop/` | 자동 루프 골격 (코드, 별도 git repo) | 🟢 골격 done / 글루 stub |
 | [[HANDOFF-SPEC]] | 옛 Hermes 사양 | ⚫ deprecated |
 

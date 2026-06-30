@@ -61,9 +61,9 @@ status: ideas
 
 ## 권장 진행 (가벼운 순)
 
-1. **④ 루프 아키텍처 Mermaid 먼저** — vault+README 양쪽 재사용, 즉시, 의존성 0.
-2. **③ 칩 가드 분기 Mermaid** — 위와 같은 도구, 이중방어 스토리.
-3. ①② 수치 차트 = 포폴 본격화 시 PNG or HTML 결정 후 제작.
+1. ✅ **④ 루프 아키텍처 Mermaid** — 완료 [[09-architecture-diagrams]] ① (렌더 검증 PASS).
+2. ✅ **③ 칩 가드 분기 Mermaid** — 완료 [[09-architecture-diagrams]] ② (렌더 검증 PASS).
+3. ⬜ ①② 수치 차트 = 포폴 본격화 시 PNG or HTML 결정 후 제작.
 
 ## 미결정 (사용자 판단 대기)
 
