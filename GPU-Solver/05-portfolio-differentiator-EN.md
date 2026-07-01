@@ -15,9 +15,10 @@ status: active
 ## One line
 
 I built a loop where an LLM agent **evolves its own classification rules from profiling
-measurements**, and proved that evolution mechanism with a **controlled ON/OFF experiment**.
-The performance gain was **measured to be null** and attributed to an environment limit —
-stated honestly as future work.
+measurements**, and proved that evolution mechanism with a **controlled ON/OFF experiment**
+(sigmoid + conv, 2 problems on A100). Performance gain is **measured at 6.4× on matmul**
+(fp32→TF32, compute-bound); on memory-bound / occupancy-saturated problems gain=null = a
+physical ceiling (not a loop defect). Multi-problem gain generalization stays as future work.
 
 ## What I proved (claimable)
 
@@ -86,14 +87,18 @@ discard *unknown* bogus hypotheses post-hoc (by measurement).
 - ❌ **Evolution superiority ON>OFF.** On matmul the first fired rule is correct → no retire needed → ON≈OFF.
   Evolution's benefit is shown separately by sigmoid's misfire-retire. **The gain axis and the evolution
   axis are not demonstrated together on a single problem.**
-- ❌ **Multi-problem generalization.** gain=matmul (1 problem), evolution=sigmoid (1 problem).
-- ⚠️ **Two axes, separated:** loop improves (gain, matmul ✅) + evolution beats static (sigmoid ✅) =
-  each a single-problem demonstration. Both-on-one-problem + multi-problem generalization = future work.
-  - **Both-on-one confirmed structurally hard (by measurement).** Tried a deliberately uncoalesced Triton
-    matmul to get "wrong rule fires → retire → right rule → gain," but the seed rules fit so well that the
-    first fired rule is always correct → no retire. **Wrong-rule-fires-naturally = memory-bound (gain
-    ceiling) vs right-rule = compute (no retire) = mutually exclusive.** Both on one problem without staging
-    = not possible. The limit itself was established by measurement.
+- ⚠️ **Multi-problem generalization — evolution axis ✅ multi-problem, gain axis still 1 problem.**
+  - **Evolution axis = sigmoid + conv2d (2 problems)** (conv added 2026-07-01). On conv the
+    `fp32_no_tensorcore` misfire arises naturally → ON=2 retires→switch to uncoalesced, OFF=forever
+    (A100, 8R). **Retire mechanism reproduced across 2 problems.**
+  - **Gain axis = matmul (1 problem)** (conv gain=null, compute ceiling). Multi-problem gain unproven.
+- ⚠️ **Two axes, separated:** loop improves (gain, matmul ✅) + evolution beats static (sigmoid+conv ✅, 2
+  problems) = each demonstrated (evolution is multi-problem). Both-on-one-problem = future work.
+  - **Both-on-one confirmed structurally hard (by measurement, twice).** ① A deliberately uncoalesced Triton
+    matmul: seed rules fit so well the first fired rule is always correct → no retire. ② **On conv2d the wrong
+    rule DID retire, but the following correct rule (uncoalesced) gain=null** (coalesced variant 0.79×,
+    occupancy saturated so the fix is moot). **Wrong-rule-fires-naturally = gain-ceiling problem vs right-rule
+    = no retire = mutually exclusive.** conv reaching "retire but hitting a gain wall" reconfirms this — honest record.
 
 > **Cross this boundary and you get downgraded.** Do not say "a system that auto-optimizes GPU kernels."
 > It collapses under a speedup question. Keep claims confined to the **mechanism / methodology layer.**
