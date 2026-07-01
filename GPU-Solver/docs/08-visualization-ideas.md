@@ -63,14 +63,20 @@ status: ideas
 
 1. ✅ **④ 루프 아키텍처 Mermaid** — 완료 [[09-architecture-diagrams]] ① (렌더 검증 PASS).
 2. ✅ **③ 칩 가드 분기 Mermaid** — 완료 [[09-architecture-diagrams]] ② (렌더 검증 PASS).
-3. ⬜ ①② 수치 차트 = 포폴 본격화 시 PNG or HTML 결정 후 제작.
+3. ✅ **①② 수치 차트 = 완료 (2026-07-01).** 순수 인라인 SVG 채택 (matplotlib 로컬 없음, node만 있음).
+   - `charts/gain.svg` = ② gain 막대 (fp32 9.6ms→TF32 1.5ms 6.4×, 커널명 sgemm≠tensorop 강조).
+   - `charts/retire.svg` = ① retire 곡선 (T4 8R, ON retire=1 vs OFF retire=0, latency 평평 캡션 명시).
+   - `index.html` = GitHub Pages 단일 포폴 페이지 (두 SVG + 세 축 스토리, 한/영 병기).
+   - **왜 순수 SVG**: 한 소스가 README `<img>` + Pages 양쪽 재사용, 의존성 0 (Chart.js 캔버스는 README 임베드 불가라 배제).
+   - README 임베드: §3(gain), §"두 축"(retire) 2곳. XML wellformed + 좌표 sanity 검증 PASS. push 완료 (커밋 `b466e39`).
 
-## 미결정 (사용자 판단 대기)
+## 미결정 → 결정됨 (2026-07-01)
 
-- [ ] 외부 면 형태: GitHub README 임베드 vs 별도 포폴 HTML 페이지(Pages)?
-- [ ] 수치 차트 도구: matplotlib PNG vs HTML+JS?
-- [ ] ⑤ 신호 프로필 포함 여부 (보조라 생략 가능)?
-- [ ] 차트 캡션 언어: 한/영 (해외 채용 타겟이면 영문).
+- [x] 외부 면 형태: **둘 다** — README `<img>` SVG + Pages `index.html`.
+- [x] 수치 차트 도구: **순수 인라인 SVG** (matplotlib PNG 아님 — 로컬 미설치, 설치 회피).
+- [ ] ⑤ 신호 프로필 = 보조라 생략 (①②로 충분 판단).
+- [x] 차트 캡션 언어: **한/영 병기.**
+- ⬜ **남음 = Pages 활성화** (repo Settings → Pages → master `/` 루트, 사용자 수동 1회). 그러면 `alexxony.github.io/gpu-solver-loop/` 라이브.
 
 ## 링크
 - [[05-portfolio-differentiator]] — 차별점 서술 (이 시각화가 뒷받침할 텍스트)
